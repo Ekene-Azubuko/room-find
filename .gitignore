@@ -2,6 +2,7 @@
 /AGENTS.md
 
 # Python caches
+backend/instance/
 __pycache__/
 *.py[cod]
 .pytest_cache/

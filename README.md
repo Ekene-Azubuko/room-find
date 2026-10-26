@@ -10,7 +10,8 @@ frontend/                 Empty; reserved for a later increment
 backend/
     app/
         __init__.py       Application factory
-        routes.py         API blueprint and health route
+        routes.py         Health and registration routes
+        db.py             SQLite connection management
     requirements.txt      Flask dependency
     .env.example          Reference environment settings
 ```
@@ -52,3 +53,30 @@ Expected response (HTTP 200):
 ```json
 {"status":"ok"}
 ```
+
+## Create a user
+
+The backend automatically creates `backend/instance/room_find.sqlite` on startup.
+This local SQLite database persists accounts across restarts and is ignored by Git.
+No additional dependencies or environment variables are needed.
+
+```sh
+curl -X POST http://127.0.0.1:5000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"alex@example.com","password":"a-long-example-password"}'
+```
+
+Successful response (HTTP 201):
+
+```json
+{"user":{"id":1,"email":"alex@example.com"}}
+```
+
+IDs are assigned by the database. Emails are trimmed and lowercased, checked for
+basic email format, and limited to 254 characters. Passwords must contain 8–128
+characters and are stored only as salted hashes using Werkzeug (included with
+Flask). Passwords and hashes are never included in registration responses.
+
+Invalid JSON or invalid fields return HTTP 400 with an `error` message. A missing
+JSON content type returns 415, and an existing email returns 409. Registration
+creates an account only; login, sessions, and email verification are not implemented.
