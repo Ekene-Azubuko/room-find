@@ -6,6 +6,8 @@
 AGENTS.md                 Project instructions
 README.md                 Setup and usage
 .gitignore                Local file exclusions
+compose.yaml              Local frontend, backend, and PostgreSQL services
+.env.example              Docker Compose environment settings
 frontend/                 Empty; reserved for a later increment
 backend/
     app/
@@ -13,6 +15,8 @@ backend/
         routes.py         Health and registration routes
         db.py             SQLite connection management
     requirements.txt      Flask dependency
+    Dockerfile            Flask development image
+    .dockerignore         Exclude local data and secrets from builds
     .env.example          Reference environment settings
 ```
 
@@ -22,7 +26,48 @@ Git does not track empty directories. After cloning, run this from the repositor
 mkdir frontend
 ```
 
-## Local setup
+## Docker Compose setup
+
+Prerequisites: Docker with the Compose plugin (included in Docker Desktop),
+with the Docker engine running. From the repository root:
+
+```sh
+mkdir -p frontend
+cp .env.example .env
+```
+
+Set `POSTGRES_PASSWORD` in the root `.env` to a local development password, then run:
+
+```sh
+docker compose up --build -d
+docker compose ps
+curl http://127.0.0.1:5000/api/health
+```
+
+- Frontend: http://localhost:3000 serves `frontend/` using Python's static HTTP
+  server. The directory is still empty, so it shows an empty directory listing.
+- Backend: http://localhost:5000 runs Flask with debug reload and mounted source.
+- PostgreSQL: `localhost:5432` from the host, or `db:5432` from other containers.
+  Database name, username, and password come from the root `.env`.
+
+This is a local development setup. The backend still uses SQLite; this increment
+adds PostgreSQL infrastructure without migrating registration or existing accounts.
+SQLite data remains in `backend/instance/` through the backend bind mount.
+PostgreSQL data persists in the `postgres_data` Docker volume. Its environment
+settings initialize a new volume only; editing `.env` does not change existing
+database credentials.
+
+Check PostgreSQL or stop the services:
+
+```sh
+docker compose exec db sh -c 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+docker compose down
+```
+
+`docker compose down` preserves database data. Adding `--volumes` deletes the
+PostgreSQL volume and its data.
+
+## Local setup (without Docker)
 
 Prerequisites: Python 3.9 or newer with pip and venv support. Use `python3` instead of `python` if required by your system.
 
