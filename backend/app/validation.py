@@ -22,3 +22,25 @@ def normalize_email(value):
     if len(value) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
         raise BadRequest("A valid email is required.")
     return value
+
+
+def reject_unknown_fields(data, allowed):
+    """Reject client fields outside the endpoint's explicit writable set."""
+    unknown = set(data) - set(allowed)
+    if unknown:
+        raise BadRequest("Unknown or read-only fields: " + ", ".join(sorted(unknown)) + ".")
+
+
+def nullable_text(value, field, maximum, trim=False, allow_blank=True):
+    """Validate nullable text and optionally normalize surrounding whitespace."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise BadRequest(f"{field} must be a string or null.")
+    if trim:
+        value = value.strip()
+    if len(value) > maximum:
+        raise BadRequest(f"{field} must contain at most {maximum} characters.")
+    if not allow_blank and not value.strip():
+        raise BadRequest(f"{field} must not be blank.")
+    return value
