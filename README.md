@@ -125,3 +125,10 @@ Flask). Passwords and hashes are never included in registration responses.
 Invalid JSON or invalid fields return HTTP 400 with an `error` message. A missing
 JSON content type returns 415, and an existing email returns 409. Registration
 creates an account only; login, sessions, and email verification are not implemented.
+
+## Backend tests
+
+From `backend/`, install `python -m pip install -r requirements-dev.txt`, then run
+`python -m pytest`. Tests use temporary SQLite files provided by pytest and never
+open the development database. GitHub Actions runs the full suite on Python 3.12
+for pushes and pull requests.
