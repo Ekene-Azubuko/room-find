@@ -7,10 +7,11 @@ def test_blueprints_registered_once(app):
     assert rules.count("/api/health") == 1
     assert rules.count("/api/auth/register") == 1
     assert rules.count("/api/profile") == 2
+    assert rules.count("/api/preferences/housing") == 2
     route_methods = [(rule.rule, method) for rule in app.url_map.iter_rules()
                      for method in rule.methods if method not in {"HEAD", "OPTIONS"}]
     assert len(route_methods) == len(set(route_methods))
-    assert set(app.blueprints) == {"health", "auth", "profile"}
+    assert set(app.blueprints) == {"health", "auth", "profile", "preferences"}
 
 
 @pytest.mark.parametrize("method,path,status", [
