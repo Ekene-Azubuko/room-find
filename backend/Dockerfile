@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY migrations ./migrations
 
 EXPOSE 5000
 CMD ["python", "-m", "flask", "--app", "app:create_app", "run", "--host=0.0.0.0", "--debug"]
