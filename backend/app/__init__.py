@@ -24,7 +24,12 @@ def create_app(test_config=None):
         database.commit()
 
     # Import inside the factory to avoid circular imports.
-    from .routes import api
+    from .auth.routes import auth
+    from .health.routes import health
+    from .errors import json_http_error
+    from werkzeug.exceptions import HTTPException
 
-    app.register_blueprint(api, url_prefix="/api")
+    app.register_blueprint(health, url_prefix="/api")
+    app.register_blueprint(auth, url_prefix="/api/auth")
+    app.register_error_handler(HTTPException, json_http_error)
     return app
