@@ -32,7 +32,8 @@ def test_database_url():
 @pytest.fixture(scope="session")
 def database_config():
     """Apply real migrations to the dedicated database before running tests."""
-    config = {"TESTING": True, "SQLALCHEMY_DATABASE_URI": test_database_url()}
+    config = {"TESTING": True, "SQLALCHEMY_DATABASE_URI": test_database_url(),
+              "SECRET_KEY": "test-only-secret-with-at-least-32-characters"}
     application = create_app(config)
     with application.app_context():
         upgrade(directory=MIGRATIONS)
@@ -59,3 +60,22 @@ def app(database_config):
 def client(app):
     """Return an isolated HTTP client."""
     return app.test_client()
+
+
+@pytest.fixture
+def csrf_client(client):
+    """Give validation tests a valid CSRF token without bypassing protection."""
+    token = client.get("/api/auth/csrf").json["csrf_token"]
+    client.environ_base["HTTP_X_CSRF_TOKEN"] = token
+    return client
+
+
+@pytest.fixture
+def authenticated_client(csrf_client):
+    """Register and log in one user, then refresh the session's CSRF token."""
+    credentials = {"email": "alex@example.com", "password": "long-password"}
+    assert csrf_client.post("/api/auth/register", json=credentials).status_code == 201
+    assert csrf_client.post("/api/auth/login", json=credentials).status_code == 200
+    token = csrf_client.get("/api/auth/csrf").json["csrf_token"]
+    csrf_client.environ_base["HTTP_X_CSRF_TOKEN"] = token
+    return csrf_client

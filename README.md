@@ -17,7 +17,8 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 ```sh
 mkdir -p frontend
 cp .env.example .env
-# Edit .env and set POSTGRES_PASSWORD before continuing.
+# Edit .env: set POSTGRES_PASSWORD and a random SECRET_KEY (at least 32 characters).
+# Generate the secret with: python3 -c 'import secrets; print(secrets.token_hex(32))'
 docker compose up -d db
 docker compose build backend
 docker compose run --rm backend python -m flask --app app:create_app db upgrade
@@ -43,6 +44,8 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 export DATABASE_URL='postgresql+psycopg://room_find:replace-me@127.0.0.1:5432/room_find'
+export SECRET_KEY='replace-with-a-generated-random-secret-at-least-32-characters'
+export SESSION_COOKIE_SECURE=false
 python -m flask --app app:create_app db upgrade
 python -m flask --app app:create_app run --debug
 ```
@@ -75,12 +78,38 @@ lack of preference. No lifestyle routes exist in this increment.
 
 ## API
 
+Use a cookie jar and pass `X-CSRF-Token` on all POST/PATCH/PUT/DELETE requests,
+including registration and login. Obtain a **fresh token after login or logout**:
+these operations clear all previous session state. CSRF failures return HTTP 400.
+
 ```sh
 curl http://127.0.0.1:5000/api/health
-curl -X POST http://127.0.0.1:5000/api/auth/register \
-  -H 'Content-Type: application/json' \
+TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:5000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/register \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"email":"alex@example.com","password":"a-long-example-password"}'
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/login \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
+  -d '{"email":"alex@example.com","password":"a-long-example-password"}'
+TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:5000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
+curl -b cookies.txt http://127.0.0.1:5000/api/auth/me
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/logout \
+  -H "X-CSRF-Token: $TOKEN"
 ```
+
+`GET /api/auth/csrf` returns `{"csrf_token":"..."}` and is not cacheable.
+`POST /api/auth/login` and `GET /api/auth/me` return the same safe `user` identity
+as registration; missing/invalid/expired sessions return JSON 401. Incorrect
+passwords and unknown emails return the identical 401 error.
+`POST /api/auth/logout` returns `{"message":"Logged out."}` and clears the cookie.
+
+Sessions contain only a user ID, permanence flag and (when obtained) a CSRF token.
+Cookies are HttpOnly, SameSite=Lax, and expire after 12 hours without sliding
+refresh. Set `SESSION_COOKIE_SECURE=true` for HTTPS deployment; use false only
+for local HTTP. Keep a randomly generated `SECRET_KEY` outside Git, stable across
+workers/restarts. Changing it invalidates existing sessions. Flask signed-cookie
+logout removes access for that browser; it does not centrally revoke a copied
+cookie before expiry. Keep API and client same-origin for this cookie setup.
 
 Health returns `{"status":"ok"}`. Registration returns HTTP 201 with
 `{"user":{"id":1,"email":"alex@example.com"}}`. Emails are trimmed/lowercased,
