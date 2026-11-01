@@ -2,7 +2,8 @@ import pytest
 from werkzeug.security import check_password_hash
 
 from app import create_app
-from app.db import get_db
+from app.extensions import db
+from app.models import User
 
 
 def test_health(client):
@@ -19,10 +20,10 @@ def test_registration_hash_normalization_and_persistence(app, client):
     assert response.status_code == 201
     assert response.json == {"user": {"id": 1, "email": "alex@example.com"}}
     with app.app_context():
-        row = get_db().execute("SELECT * FROM users").fetchone()
-        assert row["password_hash"] != "long-password"
-        assert check_password_hash(row["password_hash"], "long-password")
-    second = create_app({"TESTING": True, "DATABASE": app.config["DATABASE"]})
+        row = db.session.execute(db.select(User)).scalar_one()
+        assert row.password_hash != "long-password"
+        assert check_password_hash(row.password_hash, "long-password")
+    second = create_app({"TESTING": True, "SQLALCHEMY_DATABASE_URI": app.config["SQLALCHEMY_DATABASE_URI"]})
     duplicate = second.test_client().post("/api/auth/register", json={
         "email": "ALEX@example.com", "password": "another-password"})
     assert duplicate.status_code == 409
@@ -54,3 +55,15 @@ def test_malformed_and_missing_content_type(client):
     response = client.post("/api/auth/register", data="{}")
     assert response.status_code == 415
     assert response.json == {"error": "Content-Type must be application/json."}
+
+
+def test_duplicate_failure_does_not_poison_later_registration(client):
+    """A uniqueness violation is rolled back before the next account write."""
+    data = {"email": "a@example.com", "password": "long-password"}
+    assert client.post("/api/auth/register", json=data).status_code == 201
+    duplicate = client.post("/api/auth/register", json=data)
+    assert duplicate.status_code == 409
+    assert "already exists" in duplicate.json["error"]
+    response = client.post("/api/auth/register", json={**data, "email": "b@example.com"})
+    assert response.status_code == 201
+    assert response.json["user"]["email"] == "b@example.com"

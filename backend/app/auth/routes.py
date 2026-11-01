@@ -1,9 +1,10 @@
-import sqlite3
+from sqlalchemy.exc import IntegrityError
 
 from flask import Blueprint, jsonify
 from werkzeug.security import generate_password_hash
 
-from ..db import get_db
+from ..extensions import db
+from ..models import User
 from ..validation import json_object, normalize_email
 
 
@@ -19,15 +20,14 @@ def register():
     if not isinstance(password, str) or not 8 <= len(password) <= 128:
         return jsonify({"error": "Password must contain 8 to 128 characters."}), 400
 
-    password_hash = generate_password_hash(password)
-    database = get_db()
+    user = User(email=email, password_hash=generate_password_hash(password))
+    db.session.add(user)
     try:
-        with database:
-            result = database.execute(
-                "INSERT INTO users (email, password_hash) VALUES (?, ?)",
-                (email, password_hash),
-            )
-    except sqlite3.IntegrityError:
+        db.session.commit()
+    except IntegrityError as error:
+        db.session.rollback()
+        if getattr(error.orig, "sqlstate", None) != "23505":
+            raise
         return jsonify({"error": "An account with this email already exists."}), 409
 
-    return jsonify({"user": {"id": result.lastrowid, "email": email}}), 201
+    return jsonify({"user": user.public_identity()}), 201

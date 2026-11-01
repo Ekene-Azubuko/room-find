@@ -1,140 +1,117 @@
 # Room Find
 
+A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI version).
+`frontend/` is intentionally empty; recreate it with `mkdir -p frontend` after cloning.
+
 ## Structure
 
-```text
-AGENTS.md                 Project instructions
-README.md                 Setup and usage
-.gitignore                Local file exclusions
-compose.yaml              Local frontend, backend, and PostgreSQL services
-.env.example              Docker Compose environment settings
-frontend/                 Empty; reserved for a later increment
-backend/
-    app/
-        __init__.py       Application factory
-        health/routes.py  Health blueprint
-        auth/routes.py    Authentication blueprint
-        validation.py     Shared request validation
-        errors.py         JSON HTTP errors
-        db.py             SQLite connection management
-    requirements.txt      Flask dependency
-    Dockerfile            Flask development image
-    .dockerignore         Exclude local data and secrets from builds
-    .env.example          Reference environment settings
-```
+- `backend/app/__init__.py`: application factory and blueprint registration.
+- `backend/app/health/routes.py`, `backend/app/auth/routes.py`: API routes.
+- `backend/app/validation.py`, `errors.py`: shared input validation and JSON errors.
+- `backend/app/extensions.py`, `models.py`: database extensions and models.
+- `backend/migrations/`: reviewed, versioned Alembic schema migrations.
+- `backend/tests/`: isolated PostgreSQL API and constraint tests.
 
-Git does not track empty directories. After cloning, run this from the repository root to recreate the frontend directory:
-
-```sh
-mkdir frontend
-```
-
-## Docker Compose setup
-
-Prerequisites: Docker with the Compose plugin (included in Docker Desktop),
-with the Docker engine running. From the repository root:
+## Docker development setup
 
 ```sh
 mkdir -p frontend
 cp .env.example .env
-```
-
-Set `POSTGRES_PASSWORD` in the root `.env` to a local development password, then run:
-
-```sh
-docker compose up --build -d
-docker compose ps
+# Edit .env and set POSTGRES_PASSWORD before continuing.
+docker compose up -d db
+docker compose build backend
+docker compose run --rm backend python -m flask --app app:create_app db upgrade
+docker compose up -d backend frontend
 curl http://127.0.0.1:5000/api/health
 ```
 
-- Frontend: http://localhost:3000 serves `frontend/` using Python's static HTTP
-  server. The directory is still empty, so it shows an empty directory listing.
-- Backend: http://localhost:5000 runs Flask with debug reload and mounted source.
-- PostgreSQL: `localhost:5432` from the host, or `db:5432` from other containers.
-  Database name, username, and password come from the root `.env`.
+The API is at `http://localhost:5000`; the empty frontend directory is served on
+port 3000. PostgreSQL is at `db:5432` inside Compose and `127.0.0.1:5432` from the
+host. The backend uses the actual Compose `db` service. Use URL-safe database
+credentials in Compose; URL-encode special characters for a manually set URL.
+The development server/debug mode is for local development only.
 
-This is a local development setup. The backend still uses SQLite; this increment
-adds PostgreSQL infrastructure without migrating registration or existing accounts.
-SQLite data remains in `backend/instance/` through the backend bind mount.
-PostgreSQL data persists in the `postgres_data` Docker volume. Its environment
-settings initialize a new volume only; editing `.env` does not change existing
-database credentials.
+PostgreSQL persists in the existing `postgres_data` volume. `docker compose down`
+preserves it; do not add `--volumes` unless you intend to delete its data. Changing
+`.env` does not change credentials in an already initialized volume.
 
-Check PostgreSQL or stop the services:
-
-```sh
-docker compose exec db sh -c 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-docker compose down
-```
-
-`docker compose down` preserves database data. Adding `--volumes` deletes the
-PostgreSQL volume and its data.
-
-## Local setup (without Docker)
-
-Prerequisites: Python 3.9 or newer with pip and venv support. Use `python3` instead of `python` if required by your system.
-
-From the repository root:
+## Local setup
 
 ```sh
 cd backend
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+export DATABASE_URL='postgresql+psycopg://room_find:replace-me@127.0.0.1:5432/room_find'
+python -m flask --app app:create_app db upgrade
 python -m flask --app app:create_app run --debug
 ```
 
-On Windows, replace the activation command with `.venv\Scripts\Activate.ps1` in PowerShell or `.venv\Scripts\activate.bat` in Command Prompt.
+Replace the example credentials. `backend/.env.example` is a reference, not an
+automatically loaded configuration file. An explicit `postgresql+psycopg` URL is
+required. Startup never creates tables and never falls back to SQLite.
+Run `db upgrade` after pulling schema changes; repeating it is safe. To generate
+a future migration, run `python -m flask --app app:create_app db migrate -m 'description'`,
+review the generated file, and test it before applying it. Downgrades remove data;
+do not run them against development accounts as a routine setup step.
 
-The debug server is for local development only. `backend/.env.example` documents reference values for `FLASK_APP` and `FLASK_DEBUG`; this scaffold does not automatically load `.env` files. The explicit CLI flags above configure the app and debug mode without a dotenv dependency.
+## Data preservation
 
-## Check the API
+The previous implementation stored accounts in `backend/instance/room_find.sqlite`.
+No SQLite database files/accounts were present in this checkout when PostgreSQL
+was introduced, so no import was necessary or performed. No existing database
+files or Docker volumes were deleted. Schema migrations **do not copy SQLite
+accounts**. If you have a SQLite copy elsewhere, keep it unchanged and arrange a
+separate validated, transactional import before switching that installation;
+preserve IDs, normalized emails, password hashes and any original timestamps,
+reject normalized-email conflicts, and advance the PostgreSQL ID sequence.
 
-With the server running, use another terminal:
+`User` has a one-to-one `HousingPreference` and one-to-many `LifestylePreference`.
+Housing budgets use `NUMERIC(10,2)`; PostgreSQL enforces nonnegative budgets,
+ordered bounds, positive leases, unique keys and foreign keys. User deletion
+cascades to both preference tables. Timestamps are timezone-aware UTC values.
+Lifestyle values reserve NULL for unanswered and `no_preference` for a deliberate
+lack of preference. No lifestyle routes exist in this increment.
+
+## API
 
 ```sh
 curl http://127.0.0.1:5000/api/health
-```
-
-Expected response (HTTP 200):
-
-```json
-{"status":"ok"}
-```
-
-## Create a user
-
-The backend automatically creates `backend/instance/room_find.sqlite` on startup.
-This local SQLite database persists accounts across restarts and is ignored by Git.
-No additional dependencies or environment variables are needed.
-
-```sh
 curl -X POST http://127.0.0.1:5000/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"alex@example.com","password":"a-long-example-password"}'
 ```
 
-Successful response (HTTP 201):
+Health returns `{"status":"ok"}`. Registration returns HTTP 201 with
+`{"user":{"id":1,"email":"alex@example.com"}}`. Emails are trimmed/lowercased,
+limited to 254 characters, and checked for basic format. Passwords must contain
+8–128 characters and are stored as salted Werkzeug hashes. Responses never
+include passwords/hashes. Registration does not log in the user.
 
-```json
-{"user":{"id":1,"email":"alex@example.com"}}
+Invalid JSON/fields return 400, non-JSON content types 415, duplicate normalized
+emails 409. HTTP errors (including 404/405) use `{"error":"message"}`; 405 retains
+its `Allow` header. Blueprints are registered once in `create_app()`.
+
+## Isolated backend tests
+
+From the repository root:
+
+```sh
+docker compose -p room-find-tests -f compose.test.yaml up -d --wait
+cd backend
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+unset DATABASE_URL
+export TEST_DATABASE_URL='postgresql+psycopg://room_find_test:test-only-password@127.0.0.1:55439/room_find_test'
+python -m pytest
+cd ..
+docker compose -p room-find-tests -f compose.test.yaml down
 ```
 
-IDs are assigned by the database. Emails are trimmed and lowercased, checked for
-basic email format, and limited to 254 characters. Passwords must contain 8–128
-characters and are stored only as salted hashes using Werkzeug (included with
-Flask). Passwords and hashes are never included in registration responses.
-
-Invalid JSON or invalid fields return HTTP 400 with an `error` message. A missing
-JSON content type returns 415, and an existing email returns 409. Registration
-creates an account only; login, sessions, and email verification are not implemented.
-
-## Backend tests
-
-From `backend/`, install `python -m pip install -r requirements-dev.txt`, then run
-`python -m pytest`. Tests use temporary SQLite files provided by pytest and never
-open the development database. GitHub Actions runs the full suite on Python 3.12
-for pushes and pull requests.
-
-Blueprints are registered once in `create_app()`. Routing errors (including 404
-and 405) return the same JSON `error` envelope; 405 retains the `Allow` header.
+The test service uses temporary memory-backed storage and no development volume.
+Tests require both database and role to be named `room_find_test`, reject the
+configured development target, apply migrations, and clear only test tables.
+Do not point this role/database at real data. Do not run concurrent suites against
+one test database. Tests cover empty-schema/repeated upgrades, actual PostgreSQL
+constraints, rollback, relationships, hashing, validation and persistence.
+GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service.

@@ -1,12 +1,58 @@
+import os
+from pathlib import Path
+
 import pytest
+from flask_migrate import upgrade
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
 from app import create_app
+from app.extensions import db
+
+MIGRATIONS = str(Path(__file__).resolve().parents[1] / "migrations")
+
+
+def test_database_url():
+    """Refuse cleanup unless an explicit, dedicated test database and role are used."""
+    value = os.environ.get("TEST_DATABASE_URL")
+    if not value:
+        raise RuntimeError("Set TEST_DATABASE_URL to the dedicated PostgreSQL test database.")
+    url = make_url(value)
+    if (url.drivername != "postgresql+psycopg" or url.database != "room_find_test"
+            or url.username != "room_find_test"):
+        raise RuntimeError("Tests require database AND role room_find_test.")
+    development = os.environ.get("DATABASE_URL")
+    if development:
+        dev = make_url(development)
+        if (dev.host, dev.port, dev.database) == (url.host, url.port, url.database):
+            raise RuntimeError("TEST_DATABASE_URL cannot target DATABASE_URL.")
+    return value
+
+
+@pytest.fixture(scope="session")
+def database_config():
+    """Apply real migrations to the dedicated database before running tests."""
+    config = {"TESTING": True, "SQLALCHEMY_DATABASE_URI": test_database_url()}
+    application = create_app(config)
+    with application.app_context():
+        upgrade(directory=MIGRATIONS)
+    return config
 
 
 @pytest.fixture
-def app(tmp_path):
-    """Create an application backed only by a disposable test database."""
-    return create_app({"TESTING": True, "DATABASE": str(tmp_path / "test.sqlite")})
+def app(database_config):
+    """Reset only the allowlisted test tables for an isolated application."""
+    application = create_app(database_config)
+    with application.app_context():
+        identity = db.session.execute(text("SELECT current_database(), current_user")).one()
+        if tuple(identity) != ("room_find_test", "room_find_test"):
+            raise RuntimeError("Refusing to clear a non-test database.")
+        db.session.execute(text("TRUNCATE users, housing_preferences, lifestyle_preferences RESTART IDENTITY CASCADE"))
+        db.session.commit()
+    yield application
+    with application.app_context():
+        db.session.remove()
+        db.engine.dispose()
 
 
 @pytest.fixture
