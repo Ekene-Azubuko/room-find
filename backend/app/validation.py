@@ -1,4 +1,6 @@
+import json
 import re
+from decimal import Decimal, InvalidOperation
 
 from flask import request
 from werkzeug.exceptions import BadRequest, UnsupportedMediaType
@@ -8,7 +10,11 @@ def json_object():
     """Require a JSON object before validating its individual fields."""
     if not request.is_json:
         raise UnsupportedMediaType("Content-Type must be application/json.")
-    data = request.get_json(silent=True)
+    try:
+        # Parse decimal JSON numbers exactly so money never passes through a float.
+        data = json.loads(request.get_data(), parse_float=Decimal)
+    except (ValueError, InvalidOperation):
+        raise BadRequest("Request body must be a valid JSON object.") from None
     if not isinstance(data, dict):
         raise BadRequest("Request body must be a valid JSON object.")
     return data

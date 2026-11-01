@@ -7,7 +7,7 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 
 - `backend/app/__init__.py`: application factory and blueprint registration.
 - `backend/app/health/routes.py`, `backend/app/auth/routes.py`,
-  `backend/app/profile/routes.py`: API routes.
+  `backend/app/profile/routes.py`, `backend/app/preferences/routes.py`: API routes.
 - `backend/app/validation.py`, `errors.py`: shared input validation and JSON errors.
 - `backend/app/extensions.py`, `models.py`: database extensions and models.
 - `backend/migrations/`: reviewed, versioned Alembic schema migrations.
@@ -168,3 +168,42 @@ without saving any changes. IDs, email, credentials and timestamps are read-only
 no submitted ID selects a user. Saves change `updated_at` only when data changes.
 Authentication failures return 401 (provide valid CSRF when testing PATCH auth).
 No onboarding completion endpoint is included.
+
+## Housing preferences API
+
+`GET /api/preferences/housing` returns `{"housing":null}` before the first save,
+then `{"housing":{...}}`. `PATCH /api/preferences/housing` creates the session user's
+single row on first save and updates it on subsequent saves. No URL/body user ID
+can select another account. The response contains the answer fields below, four
+requirement flags, and a UTC `updated_at`; unchanged saves retain that timestamp.
+
+```sh
+# Use the fresh post-login TOKEN and cookie jar from the authentication example.
+curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:5000/api/preferences/housing \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
+  -d '{"city":"Seattle","budget_min":"900.00","budget_max":"1500.00","move_in_date":"2027-02-01","lease_months":12,"budget_is_requirement":true}'
+curl -b cookies.txt http://127.0.0.1:5000/api/preferences/housing
+```
+
+- `city`: trimmed nonblank text, at most 100 characters, or null.
+- `budget_min` / `budget_max`: **your monthly rent share in USD**, supplied as JSON
+  numbers or decimal strings. Values must be finite, 0–99,999,999.99, with at most
+  two decimal places. Decimal arithmetic is exact; extra precision is rejected,
+  never silently rounded. Responses always use two-decimal strings or null.
+- `move_in_date`: a valid `YYYY-MM-DD` date or null.
+- `lease_months`: a positive integer (at most 2,147,483,647) or null; strings,
+  Boolean values and fractional numbers are rejected.
+- `city_is_requirement`, `budget_is_requirement`, `move_in_is_requirement`,
+  `lease_is_requirement`: actual JSON Booleans, default false. True requires the
+  corresponding answer. For budget, at least one bound must exist; zero is valid.
+
+PATCH preserves omitted fields and allows explicit nulls for answers. Validation
+uses the **merged saved and incoming state**: a new minimum cannot exceed an
+existing maximum, and clearing a required answer requires setting its flag false
+in the same request (unless another budget bound remains). Unknown/read-only
+fields, invalid types and inconsistent states return JSON 400 without saving any
+changes. CSRF is required; unauthenticated requests with valid CSRF return 401.
+Concurrent saves are serialized per user so first saves create only one row.
+
+This increment ends at housing preferences. Lifestyle has a database model only;
+no lifestyle, onboarding-completion, matching, chat or frontend UI is implemented.
