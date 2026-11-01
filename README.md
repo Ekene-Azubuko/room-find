@@ -12,7 +12,10 @@ frontend/                 Empty; reserved for a later increment
 backend/
     app/
         __init__.py       Application factory
-        routes.py         Health and registration routes
+        health/routes.py  Health blueprint
+        auth/routes.py    Authentication blueprint
+        validation.py     Shared request validation
+        errors.py         JSON HTTP errors
         db.py             SQLite connection management
     requirements.txt      Flask dependency
     Dockerfile            Flask development image
@@ -132,3 +135,6 @@ From `backend/`, install `python -m pip install -r requirements-dev.txt`, then r
 `python -m pytest`. Tests use temporary SQLite files provided by pytest and never
 open the development database. GitHub Actions runs the full suite on Python 3.12
 for pushes and pull requests.
+
+Blueprints are registered once in `create_app()`. Routing errors (including 404
+and 405) return the same JSON `error` envelope; 405 retains the `Allow` header.
