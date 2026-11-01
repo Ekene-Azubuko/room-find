@@ -6,7 +6,8 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 ## Structure
 
 - `backend/app/__init__.py`: application factory and blueprint registration.
-- `backend/app/health/routes.py`, `backend/app/auth/routes.py`: API routes.
+- `backend/app/health/routes.py`, `backend/app/auth/routes.py`,
+  `backend/app/profile/routes.py`: API routes.
 - `backend/app/validation.py`, `errors.py`: shared input validation and JSON errors.
 - `backend/app/extensions.py`, `models.py`: database extensions and models.
 - `backend/migrations/`: reviewed, versioned Alembic schema migrations.
@@ -144,3 +145,26 @@ Do not point this role/database at real data. Do not run concurrent suites again
 one test database. Tests cover empty-schema/repeated upgrades, actual PostgreSQL
 constraints, rollback, relationships, hashing, validation and persistence.
 GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service.
+
+## Profile API
+
+`GET /api/profile` returns `{"profile":{...}}` for the authenticated user, including
+id, email, full_name, bio, onboarding_completed_at, created_at and updated_at.
+Timestamps are ISO 8601 UTC strings; absent values are JSON null. Credentials are
+never serialized. `PATCH /api/profile` accepts only `full_name` and `bio`:
+
+```sh
+# After login, fetch a fresh TOKEN as shown above.
+curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:5000/api/profile \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
+  -d '{"full_name":"Alex Smith","bio":"Looking for a quiet apartment."}'
+curl -b cookies.txt http://127.0.0.1:5000/api/profile
+```
+
+Omitted fields are preserved. Names are trimmed, nonblank when supplied, and at
+most 100 characters; biographies are at most 1,000 characters. Explicit null
+clears either field while onboarding is incomplete. Invalid fields return 400
+without saving any changes. IDs, email, credentials and timestamps are read-only;
+no submitted ID selects a user. Saves change `updated_at` only when data changes.
+Authentication failures return 401 (provide valid CSRF when testing PATCH auth).
+No onboarding completion endpoint is included.
