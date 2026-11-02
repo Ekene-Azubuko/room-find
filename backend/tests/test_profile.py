@@ -2,7 +2,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import User, utc_now
+from app.models import User
 
 
 def test_profile_read_update_persistence_and_noop(authenticated_client, database_config):
@@ -103,15 +103,3 @@ def test_profile_user_isolation(authenticated_client, app):
     assert authenticated_client.get(f"/api/profile/{user_id}").status_code == 404
     assert authenticated_client.get(f"/api/profile?user_id={user_id}").json["profile"]["id"] == 1
     assert other.get("/api/profile").json["profile"]["full_name"] == "Other"
-
-
-def test_completed_profile_cannot_clear_fields(authenticated_client, app):
-    """Null clearing is limited to incomplete profiles without adding completion routes."""
-    authenticated_client.patch("/api/profile", json={"full_name": "Alex", "bio": "Hello"})
-    with app.app_context():
-        db.session.get(User, 1).onboarding_completed_at = utc_now()
-        db.session.commit()
-    response = authenticated_client.patch("/api/profile", json={"bio": None})
-    assert response.status_code == 400
-    assert response.json == {"error": "Completed profiles cannot clear profile fields."}
-    assert authenticated_client.get("/api/profile").json["profile"]["bio"] == "Hello"

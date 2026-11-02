@@ -63,11 +63,12 @@ def housing_changes(data):
     return changes
 
 
-def validate_housing_state(state):
-    """Check budget ordering and requirement flags against the merged answers."""
+def housing_state_errors(state):
+    """Identify inconsistent budget bounds and flags in the merged answers."""
+    errors = {}
     minimum, maximum = state["budget_min"], state["budget_max"]
     if minimum is not None and maximum is not None and minimum > maximum:
-        raise BadRequest("budget_min must not exceed budget_max.")
+        errors["budget_min"] = "budget_min must not exceed budget_max."
     answered = {
         "city_is_requirement": state["city"] is not None,
         "budget_is_requirement": minimum is not None or maximum is not None,
@@ -76,7 +77,16 @@ def validate_housing_state(state):
     }
     for field, present in answered.items():
         if state[field] and not present:
-            raise BadRequest(f"{field} requires its corresponding answer.")
+            errors[field] = f"{field} requires its corresponding answer."
+
+    return errors
+
+
+def validate_housing_state(state):
+    """Reject inconsistent merged housing answers using shared validation rules."""
+    errors = housing_state_errors(state)
+    if errors:
+        raise BadRequest(next(iter(errors.values())))
 
 
 def lifestyle_answer(data, question):

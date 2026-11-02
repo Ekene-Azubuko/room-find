@@ -79,3 +79,27 @@ def authenticated_client(csrf_client):
     token = csrf_client.get("/api/auth/csrf").json["csrf_token"]
     csrf_client.environ_base["HTTP_X_CSRF_TOKEN"] = token
     return csrf_client
+
+
+@pytest.fixture
+def eligible_client(authenticated_client):
+    """Save all required answers without marking onboarding complete."""
+    from app.preferences.questions import QUESTIONS
+
+    assert authenticated_client.patch("/api/profile", json={"full_name": "Alex", "bio": "Optional"}).status_code == 200
+    assert authenticated_client.patch("/api/preferences/housing", json={
+        "city": "Seattle", "budget_min": "900.00", "budget_max": "1500.00",
+        "move_in_date": "2027-02-01", "lease_months": 12}).status_code == 200
+    for question in QUESTIONS:
+        response = authenticated_client.put("/api/preferences/lifestyle/" + question["question_key"], json={
+            "own_answer": question["own_answers"][0], "roommate_answer": "no_preference", "is_requirement": False})
+        assert response.status_code == 200
+    return authenticated_client
+
+
+@pytest.fixture
+def completed_client(eligible_client):
+    """Return a browser with a fully completed onboarding record."""
+    response = eligible_client.post("/api/onboarding/complete")
+    assert response.status_code == 200 and response.json["onboarding"]["completed"]
+    return eligible_client

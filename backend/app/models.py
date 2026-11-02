@@ -73,3 +73,9 @@ class LifestylePreference(db.Model):
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now,
                            onupdate=utc_now, server_default=db.func.now())
     user = db.relationship("User", back_populates="lifestyle_preferences")
+
+
+def lock_user(user_id):
+    """Serialize account edits and refresh identity-map data after acquiring the lock."""
+    return db.session.execute(db.select(User).where(User.id == user_id).with_for_update()
+                              .execution_options(populate_existing=True)).scalar_one()
