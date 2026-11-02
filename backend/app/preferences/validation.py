@@ -77,3 +77,22 @@ def validate_housing_state(state):
     for field, present in answered.items():
         if state[field] and not present:
             raise BadRequest(f"{field} requires its corresponding answer.")
+
+
+def lifestyle_answer(data, question):
+    """Validate the complete replacement of one own/roommate answer pair."""
+    fields = {"own_answer", "roommate_answer", "is_requirement"}
+    reject_unknown_fields(data, fields)
+    missing = fields - set(data)
+    if missing:
+        raise BadRequest("Required fields: " + ", ".join(sorted(missing)) + ".")
+    for field, choices in (("own_answer", question["own_answers"]),
+                           ("roommate_answer", question["roommate_answers"])):
+        value = data[field]
+        if value is not None and (not isinstance(value, str) or value not in choices):
+            raise BadRequest(f"{field} must be null or a supported choice for {question['question_key']}.")
+    if type(data["is_requirement"]) is not bool:
+        raise BadRequest("is_requirement must be a Boolean.")
+    if data["is_requirement"] and data["roommate_answer"] in (None, "no_preference"):
+        raise BadRequest("is_requirement requires a specific roommate_answer.")
+    return data

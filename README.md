@@ -75,7 +75,7 @@ Housing budgets use `NUMERIC(10,2)`; PostgreSQL enforces nonnegative budgets,
 ordered bounds, positive leases, unique keys and foreign keys. User deletion
 cascades to both preference tables. Timestamps are timezone-aware UTC values.
 Lifestyle values reserve NULL for unanswered and `no_preference` for a deliberate
-lack of preference. No lifestyle routes exist in this increment.
+lack of preference. Lifestyle routes use the shared initial questionnaire below.
 
 ## API
 
@@ -205,5 +205,45 @@ fields, invalid types and inconsistent states return JSON 400 without saving any
 changes. CSRF is required; unauthenticated requests with valid CSRF return 401.
 Concurrent saves are serialized per user so first saves create only one row.
 
-This increment ends at housing preferences. Lifestyle has a database model only;
-no lifestyle, onboarding-completion, matching, chat or frontend UI is implemented.
+No matching, chat or frontend UI is implemented.
+
+## Lifestyle preferences API
+
+All three routes require authentication; PUT also requires `X-CSRF-Token`.
+
+- `GET /api/preferences/lifestyle/questions` returns `{"questions":[...]}` in
+  display order, with question_key, question, roommate_question, own_answers,
+  roommate_answers, display_order and required_for_onboarding.
+- `GET /api/preferences/lifestyle` returns `{"answers":[]}` before any saves,
+  then saved answer objects in questionnaire order.
+- `PUT /api/preferences/lifestyle/<question_key>` replaces one **complete** answer
+  and returns `{"answer":{...}}` (HTTP 200 for both creation and replacement).
+  Required body fields: own_answer, roommate_answer, is_requirement. Responses
+  also include question_key and updated_at. Other question rows are unchanged.
+
+No final questionnaire specification was present in the checkout. This initial
+set uses single-choice categories that fit the existing one-answer-per-column
+schema; pet presence deliberately avoids multi-select pet species. All five
+questions are initially required for onboarding. Definitions live in
+`backend/app/preferences/questions.py` and are shared with validation.
+
+| Stable key | Allowed own answers | Allowed roommate answers |
+| --- | --- | --- |
+| sleep_schedule | early, late, flexible | own choices plus no_preference |
+| cleanliness | very_tidy, moderately_tidy, relaxed | own choices plus no_preference |
+| smoking | non_smoker, smoker | own choices plus no_preference |
+| guests | rarely, sometimes, often | own choices plus no_preference |
+| pets | has_pets, no_pets | own choices plus no_preference |
+
+```sh
+curl -b cookies.txt -c cookies.txt -X PUT http://127.0.0.1:5000/api/preferences/lifestyle/sleep_schedule \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
+  -d '{"own_answer":"early","roommate_answer":"no_preference","is_requirement":false}'
+```
+
+NULL means unanswered/cleared; `no_preference` is a deliberate roommate preference
+and is not an own-answer choice. `is_requirement` applies only to the roommate
+answer and must be false for null or no_preference. Unknown keys return 404;
+missing/unknown fields, invalid types/choices and inconsistent flags return 400.
+Failed database commits roll back and return a safe JSON 503 error. User IDs and
+server timestamps cannot be supplied. There is no bulk-save endpoint.

@@ -1,0 +1,30 @@
+"""Initial single-answer questionnaire; keys and values are persisted API contracts."""
+
+QUESTIONS = [
+    {"question_key": "sleep_schedule", "question": "What is your usual sleep schedule?",
+     "roommate_question": "What sleep schedule would you prefer in a roommate?",
+     "own_answers": ["early", "late", "flexible"],
+     "roommate_answers": ["early", "late", "flexible", "no_preference"],
+     "display_order": 1, "required_for_onboarding": True},
+    {"question_key": "cleanliness", "question": "How do you usually keep shared spaces?",
+     "roommate_question": "How would you like a roommate to keep shared spaces?",
+     "own_answers": ["very_tidy", "moderately_tidy", "relaxed"],
+     "roommate_answers": ["very_tidy", "moderately_tidy", "relaxed", "no_preference"],
+     "display_order": 2, "required_for_onboarding": True},
+    {"question_key": "smoking", "question": "Do you smoke?",
+     "roommate_question": "Would you prefer a roommate who smokes or does not smoke?",
+     "own_answers": ["non_smoker", "smoker"],
+     "roommate_answers": ["non_smoker", "smoker", "no_preference"],
+     "display_order": 3, "required_for_onboarding": True},
+    {"question_key": "guests", "question": "How often do you have guests at home?",
+     "roommate_question": "How often would you like a roommate to have guests?",
+     "own_answers": ["rarely", "sometimes", "often"],
+     "roommate_answers": ["rarely", "sometimes", "often", "no_preference"],
+     "display_order": 4, "required_for_onboarding": True},
+    {"question_key": "pets", "question": "Will you bring any pets?",
+     "roommate_question": "Would you prefer a roommate with or without pets?",
+     "own_answers": ["has_pets", "no_pets"],
+     "roommate_answers": ["has_pets", "no_pets", "no_preference"],
+     "display_order": 5, "required_for_onboarding": True},
+]
+QUESTIONS_BY_KEY = {question["question_key"]: question for question in QUESTIONS}
