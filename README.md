@@ -158,8 +158,8 @@ configured development target, apply migrations, and clear only test tables.
 Do not point this role/database at real data. Do not run concurrent suites against
 one test database. Tests cover empty-schema/repeated upgrades, actual PostgreSQL
 constraints, rollback, relationships, hashing, validation and persistence.
-GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service,
-plus the real Docker smoke workflow below. Main pushes and PRs run both jobs.
+GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service.
+Main pushes and PRs run this job.
 
 ## Profile API
 
@@ -301,35 +301,6 @@ nothing and retain the existing completion state. Restoring answers makes the
 user eligible again but requires another explicit completion request. Progress
 is derived from current data, so corrupt/legacy invalid data is reported as
 ineligible rather than trusted solely because a timestamp exists.
-
-
-## Real Docker smoke test
-
-Prerequisites: Python 3.10+ for the runner, Docker Engine, and Compose 2.24.4+
-(the integration override uses `!override` / `!reset`). From the repository root:
-
-```sh
-python3 scripts/docker_smoke.py
-```
-
-The runner uses the real `compose.yaml` services and Nginx config with a generated
-project name, random credentials in a temporary private file, an ephemeral host
-port, and its own PostgreSQL volume. It never targets the development project,
-database or volume. Its `finally` cleanup removes **only its own** test stack and
-volume after verifying persistence through restarts. No credentials, cookies or
-tokens are saved to the repository. Interrupted runs that bypass cleanup may
-leave a `room-find-smoke-*` project; inspect its exact name before removing it.
-
-It checks that startup creates no tables, applies the committed migration twice,
-checks model/schema agreement, and runs the full HTTP workflow through port 3000
-inside the proxy: CSRF, registration, login, fresh CSRF, profile, housing,
-lifestyle, progress, completion, logout, re-login and saved-answer retrieval.
-It also checks two-user isolation, session/data persistence after restarting all
-services without removing the volume, valid-edit timestamp preservation,
-required-answer completion reset, environment secrets/debug/lifetime settings,
-and the Secure cookie flag when HTTPS-only cookies are configured. This last
-check confirms such cookies are withheld over HTTP; it does not provision TLS.
-
 ## Configuration and API reference
 
 Root `.env` supplies POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD and SECRET_KEY;

@@ -121,10 +121,3 @@ it. Valid edits and clearing optional bio retain it; clearing required data rese
 it atomically with the edit. Failed updates retain answers and completion state.
 Restored answers require explicit completion again. Identity always comes from
 the session; clients cannot set completion metadata or select another user.
-
-## Reproducible verification
-
-From the repository root, run `python3 scripts/docker_smoke.py`. It creates its own
-Compose project and database, exercises every workflow stage through the real
-proxy, restarts services to check persistence, and cleans up only its own test
-resources. See the README for setup, isolated pytest commands and curl examples.
