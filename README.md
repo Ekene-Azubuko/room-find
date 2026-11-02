@@ -7,7 +7,8 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 
 - `backend/app/__init__.py`: application factory and blueprint registration.
 - `backend/app/health/routes.py`, `backend/app/auth/routes.py`,
-  `backend/app/profile/routes.py`, `backend/app/preferences/routes.py`: API routes.
+  `backend/app/profile/routes.py`, `backend/app/preferences/routes.py`,
+  `backend/app/onboarding/routes.py`: API routes.
 - `backend/app/validation.py`, `errors.py`: shared input validation and JSON errors.
 - `backend/app/extensions.py`, `models.py`: database extensions and models.
 - `backend/migrations/`: reviewed, versioned Alembic schema migrations.
@@ -17,21 +18,32 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 
 ```sh
 mkdir -p frontend
-cp .env.example .env
+cp -n .env.example .env
 # Edit .env: set POSTGRES_PASSWORD and a random SECRET_KEY (at least 32 characters).
 # Generate the secret with: python3 -c 'import secrets; print(secrets.token_hex(32))'
 docker compose up -d db
 docker compose build backend
 docker compose run --rm backend python -m flask --app app:create_app db upgrade
-docker compose up -d backend frontend
-curl http://127.0.0.1:5000/api/health
+docker compose up -d --wait backend frontend
+curl http://127.0.0.1:3000/api/health
 ```
 
-The API is at `http://localhost:5000`; the empty frontend directory is served on
-port 3000. PostgreSQL is at `db:5432` inside Compose and `127.0.0.1:5432` from the
-host. The backend uses the actual Compose `db` service. Use URL-safe database
-credentials in Compose; URL-encode special characters for a manually set URL.
-The development server/debug mode is for local development only.
+Use one browser origin: `http://localhost:3000`. The existing `frontend` service
+now runs Nginx and forwards `/api/` unchanged to `backend:5000`; static files remain
+empty and there is no UI. Direct Flask access at `http://localhost:5000` remains
+available for local debugging. Do not mix localhost and 127.0.0.1 cookie jars.
+No CORS configuration is needed or enabled for the same-origin path.
+
+PostgreSQL is at `db:5432` inside Compose and `127.0.0.1:5432` from the host. Use
+URL-safe database credentials in Compose; URL-encode special characters for a
+manually set URL. Startup order is healthy PostgreSQL, then healthy Flask, then
+Nginx. `/api/health` checks the PostgreSQL connection and returns JSON 503 if it
+cannot connect; it does not create tables or apply migrations.
+
+`FLASK_DEBUG=0` is the default; set it to 1 only for intentional local debugging.
+The Flask development server is **not a production server**. An HTTPS deployment
+needs external TLS termination and a production WSGI server, with debug off and
+`SESSION_COOKIE_SECURE=true`. Local Compose supplies HTTP only.
 
 PostgreSQL persists in the existing `postgres_data` volume. `docker compose down`
 preserves it; do not add `--volumes` unless you intend to delete its data. Changing
@@ -51,7 +63,9 @@ python -m flask --app app:create_app db upgrade
 python -m flask --app app:create_app run --debug
 ```
 
-Replace the example credentials. `backend/.env.example` is a reference, not an
+For this direct local server, use port 5000 instead of 3000 in the API examples.
+PostgreSQL must already be running (for example, `docker compose up -d db` from
+the repository root after configuring `.env`). Replace the example credentials. `backend/.env.example` is a reference, not an
 automatically loaded configuration file. An explicit `postgresql+psycopg` URL is
 required. Startup never creates tables and never falls back to SQLite.
 Run `db upgrade` after pulling schema changes; repeating it is safe. To generate
@@ -84,17 +98,17 @@ including registration and login. Obtain a **fresh token after login or logout**
 these operations clear all previous session state. CSRF failures return HTTP 400.
 
 ```sh
-curl http://127.0.0.1:5000/api/health
-TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:5000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
-curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/register \
+curl http://127.0.0.1:3000/api/health
+TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:3000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/register \
   -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"email":"alex@example.com","password":"a-long-example-password"}'
-curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/login \
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/login \
   -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"email":"alex@example.com","password":"a-long-example-password"}'
-TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:5000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
-curl -b cookies.txt http://127.0.0.1:5000/api/auth/me
-curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/auth/logout \
+TOKEN=$(curl -s -b cookies.txt -c cookies.txt http://127.0.0.1:3000/api/auth/csrf | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf_token"])')
+curl -b cookies.txt http://127.0.0.1:3000/api/auth/me
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:3000/api/auth/logout \
   -H "X-CSRF-Token: $TOKEN"
 ```
 
@@ -112,7 +126,7 @@ workers/restarts. Changing it invalidates existing sessions. Flask signed-cookie
 logout removes access for that browser; it does not centrally revoke a copied
 cookie before expiry. Keep API and client same-origin for this cookie setup.
 
-Health returns `{"status":"ok"}`. Registration returns HTTP 201 with
+Healthy API/database connectivity returns `{"status":"ok"}`. Registration returns HTTP 201 with
 `{"user":{"id":1,"email":"alex@example.com"}}`. Emails are trimmed/lowercased,
 limited to 254 characters, and checked for basic format. Passwords must contain
 8–128 characters and are stored as salted Werkzeug hashes. Responses never
@@ -144,7 +158,8 @@ configured development target, apply migrations, and clear only test tables.
 Do not point this role/database at real data. Do not run concurrent suites against
 one test database. Tests cover empty-schema/repeated upgrades, actual PostgreSQL
 constraints, rollback, relationships, hashing, validation and persistence.
-GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service.
+GitHub Actions runs the full suite on Python 3.12 with its own PostgreSQL 17 service,
+plus the real Docker smoke workflow below. Main pushes and PRs run both jobs.
 
 ## Profile API
 
@@ -155,10 +170,10 @@ never serialized. `PATCH /api/profile` accepts only `full_name` and `bio`:
 
 ```sh
 # After login, fetch a fresh TOKEN as shown above.
-curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:5000/api/profile \
+curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:3000/api/profile \
   -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"full_name":"Alex Smith","bio":"Looking for a quiet apartment."}'
-curl -b cookies.txt http://127.0.0.1:5000/api/profile
+curl -b cookies.txt http://127.0.0.1:3000/api/profile
 ```
 
 Omitted fields are preserved. Names are trimmed, nonblank when supplied, and at
@@ -179,10 +194,10 @@ requirement flags, and a UTC `updated_at`; unchanged saves retain that timestamp
 
 ```sh
 # Use the fresh post-login TOKEN and cookie jar from the authentication example.
-curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:5000/api/preferences/housing \
+curl -b cookies.txt -c cookies.txt -X PATCH http://127.0.0.1:3000/api/preferences/housing \
   -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"city":"Seattle","budget_min":"900.00","budget_max":"1500.00","move_in_date":"2027-02-01","lease_months":12,"budget_is_requirement":true}'
-curl -b cookies.txt http://127.0.0.1:5000/api/preferences/housing
+curl -b cookies.txt http://127.0.0.1:3000/api/preferences/housing
 ```
 
 - `city`: trimmed nonblank text, at most 100 characters, or null.
@@ -236,7 +251,7 @@ questions are initially required for onboarding. Definitions live in
 | pets | has_pets, no_pets | own choices plus no_preference |
 
 ```sh
-curl -b cookies.txt -c cookies.txt -X PUT http://127.0.0.1:5000/api/preferences/lifestyle/sleep_schedule \
+curl -b cookies.txt -c cookies.txt -X PUT http://127.0.0.1:3000/api/preferences/lifestyle/sleep_schedule \
   -H 'Content-Type: application/json' -H "X-CSRF-Token: $TOKEN" \
   -d '{"own_answer":"early","roommate_answer":"no_preference","is_requirement":false}'
 ```
@@ -266,8 +281,8 @@ Repeated successful requests preserve the original timestamp. Clients cannot
 supply completion flags, timestamps or user IDs.
 
 ```sh
-curl -b cookies.txt http://127.0.0.1:5000/api/onboarding
-curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/onboarding/complete \
+curl -b cookies.txt http://127.0.0.1:3000/api/onboarding
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:3000/api/onboarding/complete \
   -H "X-CSRF-Token: $TOKEN"
 ```
 
@@ -286,3 +301,47 @@ nothing and retain the existing completion state. Restoring answers makes the
 user eligible again but requires another explicit completion request. Progress
 is derived from current data, so corrupt/legacy invalid data is reported as
 ineligible rather than trusted solely because a timestamp exists.
+
+
+## Real Docker smoke test
+
+Prerequisites: Python 3.10+ for the runner, Docker Engine, and Compose 2.24.4+
+(the integration override uses `!override` / `!reset`). From the repository root:
+
+```sh
+python3 scripts/docker_smoke.py
+```
+
+The runner uses the real `compose.yaml` services and Nginx config with a generated
+project name, random credentials in a temporary private file, an ephemeral host
+port, and its own PostgreSQL volume. It never targets the development project,
+database or volume. Its `finally` cleanup removes **only its own** test stack and
+volume after verifying persistence through restarts. No credentials, cookies or
+tokens are saved to the repository. Interrupted runs that bypass cleanup may
+leave a `room-find-smoke-*` project; inspect its exact name before removing it.
+
+It checks that startup creates no tables, applies the committed migration twice,
+checks model/schema agreement, and runs the full HTTP workflow through port 3000
+inside the proxy: CSRF, registration, login, fresh CSRF, profile, housing,
+lifestyle, progress, completion, logout, re-login and saved-answer retrieval.
+It also checks two-user isolation, session/data persistence after restarting all
+services without removing the volume, valid-edit timestamp preservation,
+required-answer completion reset, environment secrets/debug/lifetime settings,
+and the Secure cookie flag when HTTPS-only cookies are configured. This last
+check confirms such cookies are withheld over HTTP; it does not provision TLS.
+
+## Configuration and API reference
+
+Root `.env` supplies POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD and SECRET_KEY;
+Compose constructs DATABASE_URL using `db:5432`. For direct local Flask use,
+export DATABASE_URL and SECRET_KEY explicitly. SESSION_COOKIE_SECURE defaults to
+false for local HTTP; FLASK_DEBUG defaults to 0. The session lifetime is 12 hours
+with no sliding refresh, HttpOnly and SameSite=Lax. Keep SECRET_KEY stable across
+workers/restarts. No real secrets belong in `.env.example` or version control.
+
+See [docs/API.md](docs/API.md) for the complete method/path reference and response
+examples. All changes through onboarding reuse the existing migration; no new
+schema revision was needed for branches 7–9. The initial questionnaire and the
+required-data defaults are explicitly provisional product choices. This increment
+stops after backend integration: no matching, chat, email verification, password
+recovery or frontend UI.
