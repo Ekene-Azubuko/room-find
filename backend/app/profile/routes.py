@@ -1,8 +1,8 @@
 from flask import Blueprint, g, jsonify
-from werkzeug.exceptions import BadRequest
 
 from ..auth.security import login_required
-from ..extensions import db
+from ..models import lock_user
+from ..onboarding.state import save_user_answers
 from ..serialization import utc_timestamp
 from ..validation import json_object, nullable_text, reject_unknown_fields
 
@@ -31,11 +31,10 @@ def update_profile():
     reject_unknown_fields(data, {"full_name", "bio"})
     changes = {}
     for field, value in data.items():
-        if value is None and g.user.onboarding_completed_at is not None:
-            raise BadRequest("Completed profiles cannot clear profile fields.")
         changes[field] = nullable_text(value, field, 100 if field == "full_name" else 1000,
                                        trim=field == "full_name", allow_blank=field != "full_name")
+    user = lock_user(g.user.id)
     for field, value in changes.items():
-        setattr(g.user, field, value)
-    db.session.commit()
+        setattr(user, field, value)
+    save_user_answers(user)
     return jsonify({"profile": serialize_profile(g.user)})

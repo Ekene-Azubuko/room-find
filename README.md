@@ -163,11 +163,11 @@ curl -b cookies.txt http://127.0.0.1:5000/api/profile
 
 Omitted fields are preserved. Names are trimmed, nonblank when supplied, and at
 most 100 characters; biographies are at most 1,000 characters. Explicit null
-clears either field while onboarding is incomplete. Invalid fields return 400
+clears either field; clearing a required name resets onboarding completion. Invalid fields return 400
 without saving any changes. IDs, email, credentials and timestamps are read-only;
 no submitted ID selects a user. Saves change `updated_at` only when data changes.
 Authentication failures return 401 (provide valid CSRF when testing PATCH auth).
-No onboarding completion endpoint is included.
+Completion is explicit; see the onboarding endpoints below.
 
 ## Housing preferences API
 
@@ -247,3 +247,42 @@ answer and must be false for null or no_preference. Unknown keys return 404;
 missing/unknown fields, invalid types/choices and inconsistent flags return 400.
 Failed database commits roll back and return a safe JSON 503 error. User IDs and
 server timestamps cannot be supplied. There is no bulk-save endpoint.
+
+
+## Onboarding API
+
+`GET /api/onboarding` requires authentication and returns
+`{"onboarding":{"completed":false,"onboarding_completed_at":null,"eligible":false,
+"missing_fields":["profile.full_name", "housing.city", "lifestyle.sleep_schedule.own_answer"],
+"errors":{"profile.full_name":"An answer is required."}}}` (illustrative subset).
+Missing entries identify every unanswered required field; errors also identify
+invalid saved fields/questions. Reading progress never marks onboarding complete.
+
+`POST /api/onboarding/complete` requires authentication and CSRF. Send no body or
+an empty JSON object. It validates saved answers, returning HTTP 400 with `error`
+and the full `onboarding` state when incomplete/invalid. An eligible request
+returns HTTP 200 with `onboarding.completed=true` and an ISO 8601 UTC timestamp.
+Repeated successful requests preserve the original timestamp. Clients cannot
+supply completion flags, timestamps or user IDs.
+
+```sh
+curl -b cookies.txt http://127.0.0.1:5000/api/onboarding
+curl -b cookies.txt -c cookies.txt -X POST http://127.0.0.1:5000/api/onboarding/complete \
+  -H "X-CSRF-Token: $TOKEN"
+```
+
+No separate onboarding specification was present, so the centralized defaults in
+`backend/app/onboarding/state.py` require a nonblank full_name, **all five housing
+answers** (including both budget bounds), and own_answer plus roommate_answer
+for every required question. Bio is optional. `no_preference` counts as an answered
+roommate preference; null never does. All saved values and requirement flags must
+also satisfy their existing validators.
+
+Users may edit after completion. Valid edits retain the timestamp; clearing a
+required profile, housing or lifestyle answer clears the timestamp **in the same
+transaction**. Clearing optional bio does not reset completion. Requirement flags
+must still be cleared with absent/no-preference answers; invalid edits save
+nothing and retain the existing completion state. Restoring answers makes the
+user eligible again but requires another explicit completion request. Progress
+is derived from current data, so corrupt/legacy invalid data is reported as
+ineligible rather than trusted solely because a timestamp exists.

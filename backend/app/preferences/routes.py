@@ -2,8 +2,9 @@ from flask import Blueprint, g, jsonify
 from werkzeug.exceptions import NotFound
 
 from ..auth.security import login_required
-from ..extensions import commit_changes, db
-from ..models import HousingPreference, LifestylePreference, User
+from ..extensions import db
+from ..models import HousingPreference, LifestylePreference, lock_user
+from ..onboarding.state import save_user_answers
 from ..serialization import utc_timestamp
 from ..validation import json_object
 from .questions import QUESTIONS, QUESTIONS_BY_KEY
@@ -39,7 +40,7 @@ def update_housing():
     """Validate the merged preferences before creating or updating the user's row."""
     changes = housing_changes(json_object())
     # Lock the parent even before the first housing row exists to serialize saves.
-    db.session.execute(db.select(User).where(User.id == g.user.id).with_for_update()).scalar_one()
+    user = lock_user(g.user.id)
     row = db.session.get(HousingPreference, g.user.id)
     state = ({field: getattr(row, field) for field in WRITABLE_FIELDS} if row is not None
              else {**dict.fromkeys(ANSWER_FIELDS), **dict.fromkeys(FLAG_FIELDS, False)})
@@ -51,7 +52,7 @@ def update_housing():
     else:
         for field, value in changes.items():
             setattr(row, field, value)
-    db.session.commit()
+    save_user_answers(user)
     return jsonify({"housing": serialize_housing(row)})
 
 
@@ -88,12 +89,12 @@ def replace_lifestyle(question_key):
         raise NotFound("Unknown lifestyle question.")
     data = lifestyle_answer(json_object(), question)
     # Serialize first saves as well as replacements using the parent account row.
-    db.session.execute(db.select(User).where(User.id == g.user.id).with_for_update()).scalar_one()
+    user = lock_user(g.user.id)
     row = db.session.get(LifestylePreference, (g.user.id, question_key))
     if row is None:
         row = LifestylePreference(user_id=g.user.id, question_key=question_key)
         db.session.add(row)
     for field, value in data.items():
         setattr(row, field, value)
-    commit_changes()
+    save_user_answers(user)
     return jsonify({"answer": serialize_lifestyle(row)})
