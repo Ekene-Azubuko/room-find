@@ -10,4 +10,4 @@ COPY app ./app
 COPY migrations ./migrations
 
 EXPOSE 5000
-CMD ["python", "-m", "flask", "--app", "app:create_app", "run", "--host=0.0.0.0", "--debug"]
+CMD ["python", "-m", "flask", "--app", "app:create_app", "run", "--host=0.0.0.0"]

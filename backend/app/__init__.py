@@ -19,7 +19,8 @@ def create_app(test_config=None):
                             PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
                             SESSION_REFRESH_EACH_REQUEST=False,
                             SQLALCHEMY_TRACK_MODIFICATIONS=False,
-                            SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"options": "-c timezone=UTC"}})
+                            SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"options": "-c timezone=UTC"},
+                                                       "pool_pre_ping": True, "hide_parameters": True})
     if test_config is not None:
         app.config.update(test_config)
     database_url = app.config.get("SQLALCHEMY_DATABASE_URI")

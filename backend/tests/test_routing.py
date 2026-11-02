@@ -24,3 +24,18 @@ def test_framework_errors_are_json(client, method, path, status):
     assert isinstance(response.json["error"], str)
     if status == 405:
         assert response.headers["Allow"]
+
+
+def test_readiness_reports_database_failure(client, monkeypatch):
+    """Readiness returns safe JSON 503 when PostgreSQL cannot be queried."""
+    from sqlalchemy.exc import SQLAlchemyError
+    from app.extensions import db
+
+    def fail_query(*args, **kwargs):
+        """Simulate an unavailable database without touching development services."""
+        raise SQLAlchemyError("unavailable")
+
+    monkeypatch.setattr(db.session, "execute", fail_query)
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    assert response.json == {"error": "Database is not ready."}
