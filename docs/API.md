@@ -15,6 +15,8 @@ login/logout. Passwords and hashes are never returned.
 | POST | /api/auth/login | same credentials | 200 `{"user":{"id":1,"email":"alex@example.com"}}` |
 | POST | /api/auth/logout | none | `{"message":"Logged out."}` |
 | GET | /api/auth/me | none | `{"user":{"id":1,"email":"alex@example.com"}}` |
+| PUT | /api/profile/photo | multipart `photo`, JPG/PNG up to 5 MB | `{"profile":{...}}` |
+| GET | /api/profile/photo | none | normalized JPEG, private/no-store |
 | GET | /api/profile | none | `{"profile":{...}}` |
 | PATCH | /api/profile | `{"full_name":"Alex","bio":null}` | `{"profile":{...}}` |
 | GET | /api/preferences/housing | none | `{"housing":null}` or `{"housing":{...}}` |
@@ -38,8 +40,12 @@ PATCH preserves omitted fields. Explicit null clears an optional/required answer
 clearing a required answer resets onboarding completion. Invalid updates save
 nothing. Unknown fields, user IDs, credentials and timestamps are rejected.
 
-Profile fields: trimmed nonblank full_name (maximum 100 characters) and bio
-(maximum 1,000). Both are nullable. The response also includes id, email,
+Profile fields: trimmed nonblank full_name (maximum 100 characters), bio
+(maximum 1,000), age (integer 18–120), occupation (maximum 100 characters),
+and life_stage (Student, Young professional, Working professional, Other).
+All are nullable. Profile responses also include photo_url or null. Photo uploads
+are decoded and re-encoded as a JPEG up to 512×512; images above 25 megapixels
+are rejected. The photo route serves only the session owner’s image. The response also includes id, email,
 created_at, updated_at and onboarding_completed_at (UTC ISO 8601 or null).
 
 Housing example:
@@ -66,6 +72,10 @@ only one bound is patched. City is trimmed/nonblank (100 characters maximum),
 move-in must be a real YYYY-MM-DD date, and lease_months must be a positive integer
 up to 2,147,483,647. All answer fields can be null.
 
+Housing additionally accepts nullable `neighborhood` (trimmed, nonblank, maximum
+200 characters) and `neighborhood_is_requirement`. A true neighborhood flag
+requires a neighborhood. Existing city and neighborhood flags are independent.
+
 Flags must be actual Booleans. A true flag needs its corresponding answer; budget
 needs at least one bound. Clear a requirement flag together with its last answer.
 Validation applies to merged saved/incoming state. Empty PATCH is a no-op for an
@@ -84,15 +94,18 @@ answer is null or no_preference.
 | Key / display order | Own-answer values | Roommate-answer values |
 | --- | --- | --- |
 | sleep_schedule / 1 | early, late, flexible | same plus no_preference |
-| cleanliness / 2 | very_tidy, moderately_tidy, relaxed | same plus no_preference |
-| smoking / 3 | non_smoker, smoker | same plus no_preference |
+| cleanliness / 2 | relaxed, mostly_relaxed, moderately_tidy, tidy, very_tidy | same plus no_preference |
+| smoking / 3 | non_smoker, smoker, outside_only, any | non_smoker, smoker, outside_only, no_preference |
 | guests / 4 | rarely, sometimes, often | same plus no_preference |
-| pets / 5 | has_pets, no_pets | same plus no_preference |
+| pets / 5 | has_pets, no_pets, okay_with_pets | same plus no_preference |
+| noise / 6 | 1, 2, 3, 4, 5 (strings) | same plus no_preference |
+| roommate_dynamic / 7 | independent, friendly, close_friends | same plus no_preference |
 
-All five questions are initially required. The questions endpoint supplies the
+Sleep schedule, cleanliness, smoking, and pets are required. Guests, noise, and
+roommate dynamic are optional for existing API clients. The UI saves noise and
+roommate dynamic, and does not expose the earlier guests question. The questions endpoint supplies the
 wording, separate own_answers/roommate_answers lists, display_order and
-required_for_onboarding. This is the documented initial questionnaire, not a
-final product specification. Definitions are centralized in preferences/questions.py.
+required_for_onboarding. The questionnaire now includes the supplied profile UI choices. Definitions are centralized in preferences/questions.py.
 
 ## Completion
 

@@ -15,7 +15,7 @@ def test_questions_and_empty_answers(authenticated_client):
     response = authenticated_client.get(PATH + "/questions")
     assert response.status_code == 200
     assert response.json == {"questions": QUESTIONS}
-    assert [question["display_order"] for question in response.json["questions"]] == [1, 2, 3, 4, 5]
+    assert [question["display_order"] for question in response.json["questions"]] == list(range(1, len(QUESTIONS) + 1))
     assert len({question["question_key"] for question in QUESTIONS}) == len(QUESTIONS)
     for question in QUESTIONS:
         assert question["question"] and question["roommate_question"]

@@ -14,7 +14,7 @@ def test_new_and_partial_progress(authenticated_client):
     assert state["onboarding_completed_at"] is None
     expected = {"profile.full_name", "housing.city", "housing.budget_min", "housing.budget_max",
                 "housing.move_in_date", "housing.lease_months"}
-    expected.update(f"lifestyle.{question['question_key']}.{field}" for question in QUESTIONS
+    expected.update(f"lifestyle.{question['question_key']}.{field}" for question in QUESTIONS if question['required_for_onboarding']
                     for field in ("own_answer", "roommate_answer"))
     assert set(state["missing_fields"]) == expected
     authenticated_client.patch("/api/profile", json={"full_name": "Alex"})
