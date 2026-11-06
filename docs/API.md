@@ -144,3 +144,8 @@ housing (city, neighborhood, budget_min/max decimal strings, move_in_date and
 lease_months), and a lifestyle map of question keys to own answers. No emails,
 password hashes, scores, or inferred matches are returned. An unseeded database
 returns an empty list. Filtering and sorting are local browsing controls.
+
+`GET /api/roommates/<id>` requires authentication and returns `{ "roommate": {...} }`
+with the same public demo fields as the listing. Missing IDs and real account IDs
+both return JSON 404. Signed-out requests return 401. Both discovery endpoints
+send `Cache-Control: no-store`; neither changes accounts or preferences.

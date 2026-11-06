@@ -5,7 +5,7 @@ Use Python 3.12 (the Docker and CI version) and Node.js 22.12+ for local fronten
 
 ## Structure
 
-- `frontend/src/pages/`: landing, registration/login, four-step profile setup, and roommate discovery with filters.
+- `frontend/src/pages/`: landing, registration/login, four-step profile setup, roommate discovery with filters, and roommate profile closeups.
 - `frontend/src/api/`: typed fetch client, API context, and cookie-session context.
 - `frontend/src/components/`, `styles.css`: shared controls and reference-based styling.
 - `frontend/public/images/`: bundled placeholder portraits and source credits.
@@ -427,3 +427,25 @@ identities cannot log in. Their dates are fixed sample dates in January/February
 2027. `GET /api/roommates` requires a session and exposes only these four personas,
 without emails, credentials, compatibility scores, or claims about requirements.
 Connections and expressions of interest are outside this increment.
+
+
+### Roommate profile closeup
+
+`feat/frontend-roommate-closeup` is based on `feat/frontend-discovery-filters` and
+adds `/app/roommates/:id`. Use the closeup branch to run both pages together;
+merge discovery first, then closeup when ready. Neither branch is merged into
+`main` automatically.
+
+Click a portrait, name, or View profile to see the persona’s biography, housing,
+lifestyle, and conversation topics. Back to roommates retains the filter/sort URL;
+refreshing a profile URL works. Missing or private account IDs show an unavailable
+profile state. The layout follows the provided references but replaces invented
+match percentages and “requirements met” claims with saved profile facts. No
+compatibility algorithm is implemented. Express interest is visibly disabled until
+connections are implemented, and no report/block actions are simulated.
+
+Browser smoke verification covers registration → discovery, four cards, filters,
+reset/chip removal, sorting, profile links and refresh, missing profiles, loading
+failures and retry, profile setup access, sign-out, and protected routes. Check
+both 1440px and 390px layouts when changing these screens. Keep browser smoke
+accounts in the isolated test database, and finish pytest before seeding it.

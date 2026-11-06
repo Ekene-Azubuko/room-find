@@ -64,3 +64,21 @@ def test_demo_profiles_cannot_log_in(app, csrf_client):
         db.session.commit()
     response = csrf_client.post("/api/auth/login", json={"email": "maya@roomly-demo.invalid", "password": "known-password"})
     assert response.status_code == 401
+
+
+def test_profile_detail_and_private_account_boundaries(app, authenticated_client):
+    """Detail links work for all personas but cannot expose arbitrary account IDs."""
+    assert app.test_cli_runner().invoke(args=["seed-roommates"]).exit_code == 0
+    roommates = authenticated_client.get("/api/roommates").json["roommates"]
+    for roommate in roommates:
+        url = f"/api/roommates/{roommate['id']}"
+        response = authenticated_client.get(url)
+        assert response.status_code == 200
+        assert response.json == {"roommate": roommate}
+        assert response.headers["Cache-Control"] == "no-store"
+        assert app.test_client().get(url).status_code == 401
+    own_id = authenticated_client.get("/api/auth/me").json["user"]["id"]
+    for roommate_id in (own_id, 99999):
+        response = authenticated_client.get(f"/api/roommates/{roommate_id}")
+        assert response.status_code == 404
+        assert response.json == {"error": "Roommate profile not found."}

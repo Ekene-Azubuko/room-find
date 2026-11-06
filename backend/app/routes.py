@@ -1,6 +1,7 @@
 """Authenticated discovery of explicitly seeded demo profiles."""
 from flask import Blueprint, jsonify
 from sqlalchemy.orm import selectinload
+from werkzeug.exceptions import NotFound
 
 from .auth.security import login_required
 from .demo import DEMO_KEYS
@@ -34,5 +35,17 @@ def list_roommates():
     """Return all seeded roommates without calculating or implying a match score."""
     users = db.session.execute(roommate_query().order_by(User.id)).scalars().all()
     response = jsonify({"roommates": [serialize_roommate(user) for user in users]})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@discovery.get("/roommates/<int:roommate_id>")
+@login_required
+def get_roommate(roommate_id):
+    """Return a single demo persona without allowing access to private real accounts."""
+    user = db.session.execute(roommate_query().where(User.id == roommate_id)).scalar_one_or_none()
+    if user is None:
+        raise NotFound("Roommate profile not found.")
+    response = jsonify({"roommate": serialize_roommate(user)})
     response.headers["Cache-Control"] = "no-store"
     return response
