@@ -6,8 +6,8 @@ from werkzeug.exceptions import BadRequest
 
 from ..validation import nullable_text, reject_unknown_fields
 
-ANSWER_FIELDS = {"city", "budget_min", "budget_max", "move_in_date", "lease_months"}
-FLAG_FIELDS = {"city_is_requirement", "budget_is_requirement", "move_in_is_requirement", "lease_is_requirement"}
+ANSWER_FIELDS = {"city", "neighborhood", "budget_min", "budget_max", "move_in_date", "lease_months"}
+FLAG_FIELDS = {"city_is_requirement", "neighborhood_is_requirement", "budget_is_requirement", "move_in_is_requirement", "lease_is_requirement"}
 WRITABLE_FIELDS = ANSWER_FIELDS | FLAG_FIELDS
 
 
@@ -51,8 +51,8 @@ def housing_changes(data):
         if field in FLAG_FIELDS:
             if type(value) is not bool:
                 raise BadRequest(f"{field} must be a Boolean.")
-        elif field == "city":
-            value = nullable_text(value, field, 100, trim=True, allow_blank=False)
+        elif field in {"city", "neighborhood"}:
+            value = nullable_text(value, field, 100 if field == "city" else 200, trim=True, allow_blank=False)
         elif field in {"budget_min", "budget_max"}:
             value = budget_amount(value, field)
         elif field == "move_in_date":
@@ -71,6 +71,7 @@ def housing_state_errors(state):
         errors["budget_min"] = "budget_min must not exceed budget_max."
     answered = {
         "city_is_requirement": state["city"] is not None,
+        "neighborhood_is_requirement": state["neighborhood"] is not None,
         "budget_is_requirement": minimum is not None or maximum is not None,
         "move_in_is_requirement": state["move_in_date"] is not None,
         "lease_is_requirement": state["lease_months"] is not None,

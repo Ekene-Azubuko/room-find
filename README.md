@@ -1,9 +1,14 @@
 # Room Find
 
-A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI version).
-`frontend/` is intentionally empty; recreate it with `mkdir -p frontend` after cloning.
+Roomly pairs a React/TypeScript frontend with a small Flask API and PostgreSQL 17.
+Use Python 3.12 (the Docker and CI version) and Node.js 22.12+ for local frontend development.
 
 ## Structure
+
+- `frontend/src/pages/`: landing, registration/login, four-step profile setup, and signed-in placeholder.
+- `frontend/src/api/`: typed fetch client, API context, and cookie-session context.
+- `frontend/src/components/`, `styles.css`: shared controls and reference-based styling.
+- `frontend/public/images/`: bundled placeholder portraits and source credits.
 
 - `backend/app/__init__.py`: application factory and blueprint registration.
 - `backend/app/health/routes.py`, `backend/app/auth/routes.py`,
@@ -17,20 +22,20 @@ A small Flask API using PostgreSQL 17. Use Python 3.12 (the Docker and CI versio
 ## Docker development setup
 
 ```sh
-mkdir -p frontend
 cp -n .env.example .env
 # Edit .env: set POSTGRES_PASSWORD and a random SECRET_KEY (at least 32 characters).
 # Generate the secret with: python3 -c 'import secrets; print(secrets.token_hex(32))'
 docker compose up -d db
-docker compose build backend
+docker compose build backend frontend
 docker compose run --rm backend python -m flask --app app:create_app db upgrade
 docker compose up -d --wait backend frontend
 curl http://127.0.0.1:3000/api/health
 ```
 
-Use one browser origin: `http://localhost:3000`. The existing `frontend` service
-now runs Nginx and forwards `/api/` unchanged to `backend:5000`; static files remain
-empty and there is no UI. Direct Flask access at `http://localhost:5000` remains
+Use one browser origin: `http://localhost:3000`. The `frontend` service builds the TypeScript/React app
+and serves it with Nginx, forwarding `/api/` unchanged to `backend:5000`.
+Page URLs such as `/login` and `/setup` fall back to the React entry point.
+Rebuild with `docker compose up -d --build frontend` after frontend changes. Direct Flask access at `http://localhost:5000` remains
 available for local debugging. Do not mix localhost and 127.0.0.1 cookie jars.
 No CORS configuration is needed or enabled for the same-origin path.
 
@@ -72,6 +77,61 @@ Run `db upgrade` after pulling schema changes; repeating it is safe. To generate
 a future migration, run `python -m flask --app app:create_app db migrate -m 'description'`,
 review the generated file, and test it before applying it. Downgrades remove data;
 do not run them against development accounts as a routine setup step.
+
+## Frontend development
+
+Start the backend and apply migrations first, then use a second terminal:
+
+```sh
+cd frontend
+npm ci
+# Optional: cp .env.example .env and adjust API_PROXY_TARGET if Flask uses another port.
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to Flask on port 5000 by default;
+keep all browser requests on the Vite origin so cookies and CSRF work together.
+Use the Docker origin on port 3000 when reviewing the built app.
+`npm run build` checks TypeScript and creates `frontend/dist/`; `npm run preview`
+previews static assets only and does not proxy the API.
+
+Routes: `/` is the landing page, `/register` creates an account and signs in before
+opening `/setup`, `/login` opens `/app` after authentication. `/setup` and `/app`
+require a session. The signed-in page intentionally shows “Page under construction”
+and links to profile setup. There is no demo-account login.
+
+`useApi()` exposes a single fetch client through React context. It sends same-origin
+cookies, obtains a CSRF token before each write (including after session rotation),
+and converts server/connection failures into readable errors. `useAuth()` restores
+identity from `/api/auth/me`. No password or session token is stored in localStorage.
+Setup saves each step before moving on; refresh restores saved answers. Unsaved
+edits within the current step are held only in memory. A failed save keeps the
+current step and draft available for retry. Final submission calls the real
+onboarding completion endpoint.
+
+The supplied screenshots define the layout, colors, controls, and illustrative
+copy; the bundled portraits are replacements. The landing page’s sample matches
+and 2,400+ social-proof text are design placeholders, not live product metrics.
+
+### Frontend checks
+
+```sh
+cd frontend
+npm test
+npm run build
+```
+
+The five client tests use Node’s built-in test runner to check CSRF rotation,
+cookie options, duplicate accounts, expired sessions, connection failures, and
+multipart uploads. No frontend test framework is required.
+
+For a browser smoke check, use an isolated test database, start Flask on port
+5001, and run Vite with `API_PROXY_TARGET=http://127.0.0.1:5001 npm run dev`.
+Register a disposable account, complete all four steps, refresh to verify saved
+answers, finish setup, sign out, and sign in again. Confirm the under-construction
+page appears and signed-out `/app` visits redirect to login. Check the pages at
+390px and 1420px widths. Do not run backend tests concurrently with this check:
+the backend tests clear the isolated database between test cases.
 
 ## Data preservation
 
@@ -166,7 +226,7 @@ Main pushes and PRs run this job.
 `GET /api/profile` returns `{"profile":{...}}` for the authenticated user, including
 id, email, full_name, bio, onboarding_completed_at, created_at and updated_at.
 Timestamps are ISO 8601 UTC strings; absent values are JSON null. Credentials are
-never serialized. `PATCH /api/profile` accepts only `full_name` and `bio`:
+never serialized. `PATCH /api/profile` accepts `full_name`, `bio`, `age`, `life_stage`, and `occupation`:
 
 ```sh
 # After login, fetch a fresh TOKEN as shown above.
@@ -182,6 +242,13 @@ clears either field; clearing a required name resets onboarding completion. Inva
 without saving any changes. IDs, email, credentials and timestamps are read-only;
 no submitted ID selects a user. Saves change `updated_at` only when data changes.
 Authentication failures return 401 (provide valid CSRF when testing PATCH auth).
+Age is nullable or an integer from 18–120. Occupation is nullable text up to
+100 characters. Life stage is Student, Young professional, Working professional,
+or Other (or null). These extra details remain optional for existing API clients.
+`PUT /api/profile/photo` accepts multipart `photo` (JPG/PNG, at most 5 MB and
+25 megapixels); it normalizes to a JPEG up to 512×512, strips metadata, and stores
+the bytes in PostgreSQL. `GET /api/profile/photo` requires the same user's session
+and disables caching. Profile responses include `photo_url` or null.
 Completion is explicit; see the onboarding endpoints below.
 
 ## Housing preferences API
@@ -189,7 +256,7 @@ Completion is explicit; see the onboarding endpoints below.
 `GET /api/preferences/housing` returns `{"housing":null}` before the first save,
 then `{"housing":{...}}`. `PATCH /api/preferences/housing` creates the session user's
 single row on first save and updates it on subsequent saves. No URL/body user ID
-can select another account. The response contains the answer fields below, four
+can select another account. The response contains the answer fields below, five
 requirement flags, and a UTC `updated_at`; unchanged saves retain that timestamp.
 
 ```sh
@@ -208,7 +275,7 @@ curl -b cookies.txt http://127.0.0.1:3000/api/preferences/housing
 - `move_in_date`: a valid `YYYY-MM-DD` date or null.
 - `lease_months`: a positive integer (at most 2,147,483,647) or null; strings,
   Boolean values and fractional numbers are rejected.
-- `city_is_requirement`, `budget_is_requirement`, `move_in_is_requirement`,
+- `city_is_requirement`, `neighborhood_is_requirement`, `budget_is_requirement`, `move_in_is_requirement`,
   `lease_is_requirement`: actual JSON Booleans, default false. True requires the
   corresponding answer. For budget, at least one bound must exist; zero is valid.
 
@@ -220,7 +287,7 @@ fields, invalid types and inconsistent states return JSON 400 without saving any
 changes. CSRF is required; unauthenticated requests with valid CSRF return 401.
 Concurrent saves are serialized per user so first saves create only one row.
 
-No matching, chat or frontend UI is implemented.
+Matching and chat are not implemented; the signed-in frontend is an under-construction page.
 
 ## Lifestyle preferences API
 
@@ -236,19 +303,21 @@ All three routes require authentication; PUT also requires `X-CSRF-Token`.
   Required body fields: own_answer, roommate_answer, is_requirement. Responses
   also include question_key and updated_at. Other question rows are unchanged.
 
-No final questionnaire specification was present in the checkout. This initial
-set uses single-choice categories that fit the existing one-answer-per-column
-schema; pet presence deliberately avoids multi-select pet species. All five
-questions are initially required for onboarding. Definitions live in
+The supplied UI references extend the initial questionnaire with single-choice
+categories that fit the existing one-answer-per-column schema; pet presence deliberately avoids multi-select pet species. Sleep, cleanliness,
+smoking, and pets are required. Guests is retained as an optional API question;
+noise and roommate dynamic are optional for compatibility with existing accounts. Definitions live in
 `backend/app/preferences/questions.py` and are shared with validation.
 
 | Stable key | Allowed own answers | Allowed roommate answers |
 | --- | --- | --- |
 | sleep_schedule | early, late, flexible | own choices plus no_preference |
-| cleanliness | very_tidy, moderately_tidy, relaxed | own choices plus no_preference |
-| smoking | non_smoker, smoker | own choices plus no_preference |
+| cleanliness | relaxed, mostly_relaxed, moderately_tidy, tidy, very_tidy | own choices plus no_preference |
+| smoking | non_smoker, smoker, outside_only, any | non_smoker, smoker, outside_only, no_preference |
 | guests | rarely, sometimes, often | own choices plus no_preference |
-| pets | has_pets, no_pets | own choices plus no_preference |
+| pets | has_pets, no_pets, okay_with_pets | own choices plus no_preference |
+| noise | 1, 2, 3, 4, 5 | own choices plus no_preference |
+| roommate_dynamic | independent, friendly, close_friends | own choices plus no_preference |
 
 ```sh
 curl -b cookies.txt -c cookies.txt -X PUT http://127.0.0.1:3000/api/preferences/lifestyle/sleep_schedule \
@@ -311,8 +380,21 @@ with no sliding refresh, HttpOnly and SameSite=Lax. Keep SECRET_KEY stable acros
 workers/restarts. No real secrets belong in `.env.example` or version control.
 
 See [docs/API.md](docs/API.md) for the complete method/path reference and response
-examples. All changes through onboarding reuse the existing migration; no new
-schema revision was needed for branches 7–9. The initial questionnaire and the
-required-data defaults are explicitly provisional product choices. This increment
-stops after backend integration: no matching, chat, email verification, password
-recovery or frontend UI.
+examples. The earlier backend onboarding increment reused the original migration;
+the frontend increment adds the UI schema migration described below. Matching,
+chat, email verification, and password recovery remain outside this increment.
+
+## UI schema increment
+
+Migration `b2f8c41a9d10` adds nullable age, occupation, life stage, normalized photo
+bytes, neighborhood text, and a neighborhood requirement flag. Apply migrations
+before using this frontend. Existing account/profile data is preserved.
+Neighborhood accepts up to 200 characters; a true neighborhood requirement needs
+a neighborhood. City and neighborhood retain separate flags.
+
+The four-step UI models shared-home preferences: its selected lifestyle value is
+saved as both the own answer and preferred roommate answer, while Must-have
+controls the requirement flag. Smoking “No preference” maps to own `any` and
+roommate `no_preference`. Existing separate own/roommate API choices remain
+supported, but editing a choice through this UI aligns both values. New details
+remain optional at the API level so existing completed profiles stay compatible.
