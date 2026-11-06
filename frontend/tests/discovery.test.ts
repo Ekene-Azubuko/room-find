@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { filterRoommates, readFilters } from "../src/pages/discovery.ts";
 import type { Roommate } from "../src/api/client.ts";
 
-const roommates = [
+const roommates: Roommate[] = [
   {
     id: 1,
     full_name: "Maya",
@@ -64,7 +64,21 @@ const roommates = [
       pets: "no_pets",
     },
   },
-] as Roommate[];
+].map((roommate) => ({
+  ...roommate,
+  age: 25,
+  occupation: "Demo occupation",
+  life_stage: "Young professional",
+  bio: "Demo biography",
+  photo_url: "/images/maya.jpg",
+  is_demo: true,
+  housing: {
+    city: "Brooklyn",
+    budget_max: "2100",
+    lease_months: 12,
+    ...roommate.housing,
+  },
+}));
 
 /** Return visible IDs for a browser filter query. */
 function ids(query = "") {
