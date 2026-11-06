@@ -282,7 +282,7 @@ export function Home() {
               )}
               <div className="roommate-grid">
                 {results.map((roommate) => (
-                  <article className="roommate-card" key={roommate.id}>
+                  <article className="discovery-card" key={roommate.id}>
                     <Link
                       className="roommate-photo"
                       to={`/app/roommates/${roommate.id}${params.size ? `?${params}` : ""}`}
