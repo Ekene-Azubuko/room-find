@@ -1,6 +1,13 @@
 import type { CSSProperties } from "react";
 
 const paths = {
+  search: (
+    <>
+      <circle cx="10" cy="10" r="7" />
+      <path d="m15 15 6 6" />
+    </>
+  ),
+  close: <path d="m6 6 12 12M6 18 18 6" />,
   home: (
     <>
       <path d="m3 10 9-8 9 8M5 9v12h14V9" />

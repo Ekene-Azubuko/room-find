@@ -28,6 +28,26 @@ export type Answer = {
   roommate_answer: string | null;
   is_requirement: boolean;
 };
+export type Roommate = {
+  id: number;
+  full_name: string;
+  age: number;
+  occupation: string;
+  bio: string;
+  life_stage: string;
+  photo_url: string;
+  is_demo: boolean;
+  housing: Pick<
+    Housing,
+    | "city"
+    | "neighborhood"
+    | "budget_min"
+    | "budget_max"
+    | "move_in_date"
+    | "lease_months"
+  > | null;
+  lifestyle: Record<string, string | null>;
+};
 
 /** Preserve the server's HTTP status so callers can distinguish expired sessions. */
 export class ApiError extends Error {
@@ -90,6 +110,8 @@ export function createApiClient() {
     }
   }
   return {
+    /** List seeded discovery profiles without compatibility ranking. */
+    roommates: () => request<{ roommates: Roommate[] }>("/roommates"),
     /** Create credentials without implicitly changing the server session. */
     register: (credentials: Credentials) =>
       request<{ user: User }>("/auth/register", "POST", credentials),

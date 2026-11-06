@@ -15,6 +15,7 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
+    demo_key = db.Column(db.String(30), unique=True)
     password_hash = db.Column(db.Text, nullable=False)
     full_name = db.Column(db.String(100))
     bio = db.Column(db.Text)

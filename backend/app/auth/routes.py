@@ -51,7 +51,7 @@ def login():
     password = data.get("password")
     user = db.session.execute(db.select(User).filter_by(email=email)).scalar_one_or_none()
     if (not isinstance(password, str) or not 8 <= len(password) <= 128
-            or user is None or not check_password_hash(user.password_hash, password)):
+            or user is None or user.demo_key is not None or not check_password_hash(user.password_hash, password)):
         return jsonify({"error": "Invalid email or password."}), 401
     session.clear()
     session["user_id"] = user.id
