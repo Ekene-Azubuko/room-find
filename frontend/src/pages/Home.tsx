@@ -208,6 +208,7 @@ export function Home() {
             <label className="sort-label">
               Sort by
               <select
+                aria-label="Sort roommates"
                 value={filters.sort}
                 onChange={(event) => setFilter("sort", event.target.value)}
               >
