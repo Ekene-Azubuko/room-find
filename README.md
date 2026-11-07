@@ -5,7 +5,7 @@ Use Python 3.12 (the Docker and CI version) and Node.js 22.12+ for local fronten
 
 ## Structure
 
-- `frontend/src/pages/`: landing, registration/login, four-step profile setup, and signed-in placeholder.
+- `frontend/src/pages/`: landing, registration/login, four-step profile setup, and roommate discovery with filters.
 - `frontend/src/api/`: typed fetch client, API context, and cookie-session context.
 - `frontend/src/components/`, `styles.css`: shared controls and reference-based styling.
 - `frontend/public/images/`: bundled placeholder portraits and source credits.
@@ -96,9 +96,9 @@ Use the Docker origin on port 3000 when reviewing the built app.
 previews static assets only and does not proxy the API.
 
 Routes: `/` is the landing page, `/register` creates an account and signs in before
-opening `/setup`, `/login` opens `/app` after authentication. `/setup` and `/app`
-require a session. The signed-in page intentionally shows “Page under construction”
-and links to profile setup. There is no demo-account login.
+opening `/app`, `/login` opens `/app` after authentication. `/setup` and `/app`
+require a session. The signed-in discovery page shows all four seeded demo roommates by default
+and links to profile setup through the account menu and filter sidebar. There is no demo-account login.
 
 `useApi()` exposes a single fetch client through React context. It sends same-origin
 cookies, obtains a CSRF token before each write (including after session rotation),
@@ -121,15 +121,15 @@ npm test
 npm run build
 ```
 
-The five client tests use Node’s built-in test runner to check CSRF rotation,
+The client and discovery-filter tests use Node’s built-in test runner to check CSRF rotation,
 cookie options, duplicate accounts, expired sessions, connection failures, and
 multipart uploads. No frontend test framework is required.
 
 For a browser smoke check, use an isolated test database, start Flask on port
 5001, and run Vite with `API_PROXY_TARGET=http://127.0.0.1:5001 npm run dev`.
 Register a disposable account, complete all four steps, refresh to verify saved
-answers, finish setup, sign out, and sign in again. Confirm the under-construction
-page appears and signed-out `/app` visits redirect to login. Check the pages at
+answers, finish setup, sign out, and sign in again. Confirm discovery
+appears and signed-out `/app` visits redirect to login. Check the pages at
 390px and 1420px widths. Do not run backend tests concurrently with this check:
 the backend tests clear the isolated database between test cases.
 
@@ -287,7 +287,7 @@ fields, invalid types and inconsistent states return JSON 400 without saving any
 changes. CSRF is required; unauthenticated requests with valid CSRF return 401.
 Concurrent saves are serialized per user so first saves create only one row.
 
-Matching and chat are not implemented; the signed-in frontend is an under-construction page.
+Compatibility scoring and chat are not implemented; discovery lists all seeded demo roommates without ranking.
 
 ## Lifestyle preferences API
 
@@ -398,3 +398,32 @@ controls the requirement flag. Smoking “No preference” maps to own `any` and
 roommate `no_preference`. Existing separate own/roommate API choices remain
 supported, but editing a choice through this UI aligns both values. New details
 remain optional at the API level so existing completed profiles stay compatible.
+
+## Discovery and demo roommates
+
+The `feat/frontend-discovery-filters` branch adds `/app`, optional location, monthly
+budget, move-in and lifestyle filters, and explicit name/budget/date sorting.
+Registration signs in and opens discovery immediately; profile setup remains at
+`/setup`. No onboarding completion is required to browse. Filters are stored in the
+URL, start cleared, and can be reset or removed individually. A budget cap includes
+any persona whose minimum rent is at or below the cap; locations within a group
+are alternatives, while different filter groups are combined.
+
+Apply the schema and explicitly seed the development database:
+
+```sh
+docker compose exec backend python -m flask --app app:create_app db upgrade
+docker compose exec backend python -m flask --app app:create_app seed-roommates
+docker compose restart backend
+docker compose up -d --build frontend
+```
+
+For a local virtual environment, use the same two Flask commands after exporting
+`DATABASE_URL` and `SECRET_KEY`. Seeding adds Maya Chen, Jordan Ellis, Priya Nair,
+and Elena Morales, with placeholder portraits and housing/lifestyle data. It is
+repeatable and skips existing demo identities without overwriting edits. It never
+runs at startup and does not replace, clear, or publish real accounts. Demo
+identities cannot log in. Their dates are fixed sample dates in January/February
+2027. `GET /api/roommates` requires a session and exposes only these four personas,
+without emails, credentials, compatibility scores, or claims about requirements.
+Connections and expressions of interest are outside this increment.

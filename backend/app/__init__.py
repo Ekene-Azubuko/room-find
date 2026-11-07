@@ -41,12 +41,16 @@ def create_app(test_config=None):
     from .preferences.routes import preferences
     from .onboarding.routes import onboarding
     from .errors import json_http_error
+    from .routes import discovery
+    from .demo import seed_roommates
 
     app.register_blueprint(health, url_prefix="/api")
     app.register_blueprint(auth, url_prefix="/api/auth")
     app.register_blueprint(profile, url_prefix="/api/profile")
     app.register_blueprint(preferences, url_prefix="/api/preferences")
     app.register_blueprint(onboarding, url_prefix="/api/onboarding")
+    app.register_blueprint(discovery, url_prefix="/api")
+    app.cli.add_command(seed_roommates)
     from .auth.security import protect_csrf
     app.before_request(protect_csrf)
     app.register_error_handler(HTTPException, json_http_error)

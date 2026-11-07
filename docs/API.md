@@ -134,3 +134,13 @@ it. Valid edits and clearing optional bio retain it; clearing required data rese
 it atomically with the edit. Failed updates retain answers and completion state.
 Restored answers require explicit completion again. Identity always comes from
 the session; clients cannot set completion metadata or select another user.
+
+## Demo roommate discovery
+
+`GET /api/roommates` requires authentication and returns `{ "roommates": [...] }`.
+Only explicitly seeded demo personas are listed; real accounts stay private. Each
+profile contains id, full_name, age, occupation, life_stage, bio, photo_url, is_demo,
+housing (city, neighborhood, budget_min/max decimal strings, move_in_date and
+lease_months), and a lifestyle map of question keys to own answers. No emails,
+password hashes, scores, or inferred matches are returned. An unseeded database
+returns an empty list. Filtering and sorting are local browsing controls.

@@ -35,14 +35,14 @@ export function AuthPage({ register = false }: { register?: boolean }) {
       }
       const { user } = await api.login(credentials);
       auth.setUser(user);
-      navigate(register ? "/setup" : "/app", { replace: true });
+      navigate("/app", { replace: true });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Please try again.");
     } finally {
       setBusy(false);
     }
   }
-  if (auth.user) return <Navigate to={register ? "/setup" : "/app"} replace />;
+  if (auth.user) return <Navigate to="/app" replace />;
   return (
     <>
       <Header>
