@@ -7,6 +7,7 @@ import { Landing } from "./pages/Landing";
 import { AuthPage } from "./pages/AuthPage";
 import { Setup } from "./pages/Setup";
 import { Home } from "./pages/Home";
+import { RoommateProfile } from "./pages/RoommateProfile";
 import { Header } from "./components/Header";
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-500.css";
@@ -14,6 +15,7 @@ import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
 import "./styles.css";
 import "./discovery.css";
+import "./roommate-profile.css";
 
 /** Wait for session restoration before rendering a private route. */
 function Protected({ children }: { children: ReactNode }) {
@@ -66,6 +68,14 @@ createRoot(document.getElementById("root")!).render(
             element={
               <Protected>
                 <Home />
+              </Protected>
+            }
+          />
+          <Route
+            path="/app/roommates/:roommateId"
+            element={
+              <Protected>
+                <RoommateProfile />
               </Protected>
             }
           />

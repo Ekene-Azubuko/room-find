@@ -112,6 +112,9 @@ export function createApiClient() {
   return {
     /** List seeded discovery profiles without compatibility ranking. */
     roommates: () => request<{ roommates: Roommate[] }>("/roommates"),
+    /** Read a demo roommate by ID; private accounts are never exposed. */
+    roommate: (id: string) =>
+      request<{ roommate: Roommate }>(`/roommates/${encodeURIComponent(id)}`),
     /** Create credentials without implicitly changing the server session. */
     register: (credentials: Credentials) =>
       request<{ user: User }>("/auth/register", "POST", credentials),
