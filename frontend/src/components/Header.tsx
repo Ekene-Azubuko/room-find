@@ -2,15 +2,15 @@ import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
-/** Keep the Roomly wordmark and page navigation consistent. */
+/** Keep the Room Find wordmark and page navigation consistent. */
 export function Header({ children }: { children?: ReactNode }) {
   return (
     <header className="site-header">
-      <Link className="brand" to="/" aria-label="Roomly home">
+      <Link className="brand" to="/" aria-label="Room Find home">
         <span className="brand-icon">
-          <Icon name="home" />
+          <Icon name="roomFind" />
         </span>
-        Roomly
+        Room Find
       </Link>
       <nav aria-label="Main navigation">{children}</nav>
     </header>

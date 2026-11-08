@@ -34,11 +34,11 @@ export function DiscoverHeader() {
   }
   return (
     <header className="discover-header">
-      <Link className="brand" to="/app" aria-label="Roomly discovery">
+      <Link className="brand" to="/app" aria-label="Room Find discovery">
         <span className="brand-icon">
-          <Icon name="home" />
+          <Icon name="roomFind" />
         </span>
-        Roomly
+        Room Find
       </Link>
       <nav aria-label="Main navigation">
         <Link className="active" to="/app" aria-current="page">

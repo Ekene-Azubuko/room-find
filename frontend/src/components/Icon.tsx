@@ -1,6 +1,13 @@
 import type { CSSProperties } from "react";
 
 const paths = {
+  roomFind: (
+    <>
+      <path d="m2 10 8-7 8 7M4 9v11h7M8 20v-6h3" />
+      <circle cx="16" cy="15" r="4" />
+      <path d="m19 18 3 3" />
+    </>
+  ),
   search: (
     <>
       <circle cx="10" cy="10" r="7" />

@@ -47,7 +47,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     <>
       <Header>
         <span className="header-muted">
-          {register ? "Already have an account?" : "New to Roomly?"}
+          {register ? "Already have an account?" : "New to Room Find?"}
         </span>
         <Link className="header-link" to={register ? "/login" : "/register"}>
           {register ? "Sign in" : "Create a profile"}

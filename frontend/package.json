@@ -1,9 +1,9 @@
 {
-  "name": "roomly-frontend",
+  "name": "room-find-frontend",
   "private": true,
   "type": "module",
   "version": "1.0.0",
-  "description": "Roomly landing, authentication, and profile setup UI",
+  "description": "Room Find landing, authentication, and profile setup UI",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
