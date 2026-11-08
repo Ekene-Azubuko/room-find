@@ -1,3 +1,4 @@
+import { answerLabel, initialChoices, type Question } from "./setup/options.ts";
 import type { Roommate } from "../api/client.ts";
 
 export const neighborhoods = [
@@ -56,8 +57,19 @@ export const lifestyleLabels: Record<string, Record<string, string>> = {
 };
 
 /** Translate stored preference choices into readable profile details. */
-export function lifestyleLabel(key: string, value: string | null | undefined) {
-  return value ? lifestyleLabels[key]?.[value] || "Not added" : "Not added";
+export function lifestyleLabel(
+  key: string,
+  value: string | null | undefined,
+  detailed = false,
+) {
+  if (key === "cleanliness" && !detailed)
+    return value
+      ? lifestyleLabels.cleanliness[value] || "Not provided"
+      : "Not provided";
+  if (key in initialChoices) return answerLabel(key as Question, value);
+  return value
+    ? lifestyleLabels[key]?.[value] || "Not provided"
+    : "Not provided";
 }
 
 /** Format a date-only value without shifting it across time zones. */
@@ -135,7 +147,13 @@ export function filterRoommates(
       if (key === "non_smoker") return answers.smoking === "non_smoker";
       if (key === "quiet") return ["1", "2"].includes(answers.noise || "");
       if (key === "early") return answers.sleep_schedule === "early";
-      return ["has_pets", "okay_with_pets"].includes(answers.pets || "");
+      return (
+        roommate.answers?.some(
+          (answer) =>
+            answer.question_key === "pets" &&
+            answer.roommate_answer === "no_preference",
+        ) || false
+      );
     });
   });
   if (filters.sort === "name")

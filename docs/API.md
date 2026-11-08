@@ -95,17 +95,30 @@ answer is null or no_preference.
 | --- | --- | --- |
 | sleep_schedule / 1 | early, late, flexible | same plus no_preference |
 | cleanliness / 2 | relaxed, mostly_relaxed, moderately_tidy, tidy, very_tidy | same plus no_preference |
-| smoking / 3 | non_smoker, smoker, outside_only, any | non_smoker, smoker, outside_only, no_preference |
+| smoking / 3 | non_smoker, smoker, outside_only | non_smoker, outside_only, no_preference |
 | guests / 4 | rarely, sometimes, often | same plus no_preference |
-| pets / 5 | has_pets, no_pets, okay_with_pets | same plus no_preference |
+| pets / 5 | has_pets, no_pets | no_pets, no_preference |
 | noise / 6 | 1, 2, 3, 4, 5 (strings) | same plus no_preference |
 | roommate_dynamic / 7 | independent, friendly, close_friends | same plus no_preference |
+| daytime_visitors / 8 | never, less_than_weekly, 1_2, 3_4, 5_7 | same plus no_preference |
+| overnight_guests / 9 | never, less_than_weekly, 1_2, 3_4, 5_7 | same plus no_preference |
 
 Sleep schedule, cleanliness, smoking, and pets are required. Guests, noise, and
-roommate dynamic are optional for existing API clients. The UI saves noise and
+roommate dynamic, daytime visitors, and overnight guests are optional for existing API clients. The UI saves noise and
 roommate dynamic, and does not expose the earlier guests question. The questions endpoint supplies the
 wording, separate own_answers/roommate_answers lists, display_order and
 required_for_onboarding. The questionnaire now includes the supplied profile UI choices. Definitions are centralized in preferences/questions.py.
+
+Guest habits use days per week for daytime visitors and nights per week for
+overnight guests. The roommate choices are maximums: `1_2` allows up to 2,
+`3_4` up to 4, and `5_7` up to 7 days/nights per week. `never` allows zero;
+`less_than_weekly` allows less than once weekly. No preference imposes no limit.
+Pet/smoking no_preference means comfortable either way, never requiring that habit.
+The legacy guests question remains readable/writable without inventing new frequencies.
+
+Apply migration `d4a12f09b731` before using this version. It preserves original
+combined answers in an internal legacy_answers archive and clears ambiguous facts.
+The archive is never returned by the API. See README for deployment and rollback notes.
 
 ## Completion
 
@@ -141,7 +154,8 @@ the session; clients cannot set completion metadata or select another user.
 Only explicitly seeded demo personas are listed; real accounts stay private. Each
 profile contains id, full_name, age, occupation, life_stage, bio, photo_url, is_demo,
 housing (city, neighborhood, budget_min/max decimal strings, move_in_date and
-lease_months), and a lifestyle map of question keys to own answers. No emails,
+lease_months), a lifestyle map of question keys to own answers, and an answers
+array with separate own_answer, roommate_answer, and is_requirement values. No emails,
 password hashes, scores, or inferred matches are returned. An unseeded database
 returns an empty list. Filtering and sorting are local browsing controls.
 

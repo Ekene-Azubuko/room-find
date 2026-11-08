@@ -47,6 +47,7 @@ export type Roommate = {
     | "lease_months"
   > | null;
   lifestyle: Record<string, string | null>;
+  answers?: Answer[];
 };
 
 /** Preserve the server's HTTP status so callers can distinguish expired sessions. */

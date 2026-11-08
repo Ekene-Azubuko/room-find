@@ -7,6 +7,7 @@ from .auth.security import login_required
 from .demo import DEMO_KEYS
 from .extensions import db
 from .models import User
+from .preferences.routes import serialize_lifestyle
 
 discovery = Blueprint("discovery", __name__)
 
@@ -18,8 +19,9 @@ def serialize_roommate(user):
             "occupation": user.occupation, "bio": user.bio, "life_stage": user.life_stage,
             "photo_url": f"/images/{user.demo_key}.jpg", "is_demo": True,
             "housing": {"city": housing.city, "neighborhood": housing.neighborhood,
-                        "budget_min": str(housing.budget_min), "budget_max": str(housing.budget_max),
-                        "move_in_date": housing.move_in_date.isoformat(), "lease_months": housing.lease_months} if housing else None,
+                        "budget_min": str(housing.budget_min) if housing.budget_min is not None else None, "budget_max": str(housing.budget_max) if housing.budget_max is not None else None,
+                        "move_in_date": housing.move_in_date.isoformat() if housing.move_in_date else None, "lease_months": housing.lease_months} if housing else None,
+            "answers": [serialize_lifestyle(answer) for answer in sorted(user.lifestyle_preferences, key=lambda row: row.question_key)],
             "lifestyle": {answer.question_key: answer.own_answer for answer in user.lifestyle_preferences}}
 
 

@@ -116,3 +116,31 @@ def test_test_database_guard_rejects_development_alias(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", value)
     with pytest.raises(RuntimeError, match="cannot target"):
         database_url()
+
+
+def test_combined_answer_migration_preserves_originals(app):
+    """Archive legacy pairs, retain accounts and leave uncertain habits unanswered."""
+    with app.app_context():
+        downgrade(directory=MIGRATIONS, revision="c3e91d8b2a40")
+        db.session.execute(text("INSERT INTO users (id, email, password_hash) VALUES (1, 'legacy@example.com', 'hash')"))
+        for key, own, roommate in [("pets", "okay_with_pets", "okay_with_pets"),
+                                    ("smoking", "non_smoker", "non_smoker"),
+                                    ("cleanliness", "tidy", "tidy"),
+                                    ("guests", "sometimes", "often")]:
+            db.session.execute(text("""INSERT INTO lifestyle_preferences
+                (user_id, question_key, own_answer, roommate_answer, is_requirement)
+                VALUES (1, :key, :own, :roommate, true)"""),
+                {"key": key, "own": own, "roommate": roommate})
+        db.session.commit()
+        upgrade(directory=MIGRATIONS)
+        assert db.session.get(User, 1).email == "legacy@example.com"
+        pets = db.session.get(LifestylePreference, (1, "pets"))
+        assert pets.own_answer is None and pets.roommate_answer == "no_preference"
+        assert pets.is_requirement is False
+        assert pets.legacy_answers["own_answer"] == "okay_with_pets"
+        smoking = db.session.get(LifestylePreference, (1, "smoking"))
+        assert smoking.own_answer is None and smoking.roommate_answer == "non_smoker"
+        assert smoking.is_requirement is True
+        assert db.session.get(LifestylePreference, (1, "cleanliness")).own_answer is None
+        assert db.session.get(LifestylePreference, (1, "guests")).own_answer == "sometimes"
+        assert db.session.get(LifestylePreference, (1, "daytime_visitors")) is None

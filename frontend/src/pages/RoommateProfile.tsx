@@ -1,8 +1,9 @@
+import { answerLabel, initialChoices, type Question } from "./setup/options";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../api/ApiContext";
 import { useAuth } from "../api/AuthContext";
-import { ApiError, type Roommate } from "../api/client";
+import { ApiError, type Answer, type Roommate } from "../api/client";
 import { DiscoverHeader } from "../components/DiscoverHeader";
 import { Icon, type IconName } from "../components/Icon";
 import { budgetLabel, lifestyleLabel, moveInLabel } from "./discovery";
@@ -30,6 +31,111 @@ function ProfileFact({
   );
 }
 
+const comparisonTopics: Record<Question, string> = {
+  cleanliness: "Cleanliness",
+  noise: "Noise at home",
+  sleep_schedule: "Sleep schedule",
+  pets: "Pets",
+  smoking: "Smoking",
+  roommate_dynamic: "Roommate dynamic",
+  daytime_visitors: "Daytime visitors",
+  overnight_guests: "Overnight guests",
+};
+
+/** Compare saved habits and expectations with one column per person. */
+function AnswerComparison({
+  ownAnswers,
+  roommate,
+  hard,
+}: {
+  ownAnswers: Answer[];
+  roommate: Roommate;
+  hard: boolean;
+}) {
+  const topics = (Object.keys(initialChoices) as Question[]).filter((key) => {
+    const you = ownAnswers.find((answer) => answer.question_key === key);
+    const them = roommate.answers?.find(
+      (answer) => answer.question_key === key,
+    );
+    return Boolean(you?.is_requirement || them?.is_requirement) === hard;
+  });
+  const title = hard ? "Hard requirements" : "Shared lifestyle preferences";
+  return (
+    <section className="profile-panel comparison-panel">
+      <div className="profile-panel-heading">
+        <span className={`section-symbol${hard ? "" : " lavender"}`}>
+          <Icon name={hard ? "check" : "sparkles"} />
+        </span>
+        <div>
+          <h2>{title}</h2>
+          <p>
+            {hard
+              ? "The preferences either of you considers essential"
+              : "A closer look at your everyday habits and preferences"}
+          </p>
+        </div>
+      </div>
+      {topics.length ? (
+        <table className="answer-comparison" aria-label={title}>
+          <colgroup>
+            <col className="comparison-label-column" />
+            <col />
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">At a glance</th>
+              <th scope="col">You</th>
+              <th scope="col">{roommate.full_name}</th>
+            </tr>
+          </thead>
+          {topics.map((key) => {
+            const answers = [
+              ownAnswers.find((answer) => answer.question_key === key),
+              roommate.answers?.find((answer) => answer.question_key === key),
+            ];
+            return (
+              <tbody key={key}>
+                <tr className="comparison-topic">
+                  <th colSpan={3} scope="rowgroup">
+                    {comparisonTopics[key]}
+                  </th>
+                </tr>
+                <tr>
+                  <th scope="row">Personal habits</th>
+                  {answers.map((answer, index) => (
+                    <td key={index}>{answerLabel(key, answer?.own_answer)}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <th scope="row">Roommate preference</th>
+                  {answers.map((answer, index) => (
+                    <td key={index}>
+                      {answerLabel(key, answer?.roommate_answer, true)}
+                      {answer?.roommate_answer &&
+                        answer.roommate_answer !== "no_preference" && (
+                          <span
+                            className={`preference-badge${answer.is_requirement ? " essential" : ""}`}
+                          >
+                            {answer.is_requirement ? "Must-have" : "Flexible"}
+                          </span>
+                        )}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            );
+          })}
+        </table>
+      ) : (
+        <p className="comparison-empty">
+          Neither profile lists a must-have lifestyle preference.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** Show a single seeded roommate and keep the viewer's discovery filters on return. */
 export function RoommateProfile() {
   const { roommateId = "" } = useParams();
@@ -37,6 +143,7 @@ export function RoommateProfile() {
   const api = useApi();
   const auth = useAuth();
   const navigate = useNavigate();
+  const [ownAnswers, setOwnAnswers] = useState<Answer[]>([]);
   const [roommate, setRoommate] = useState<Roommate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -48,10 +155,12 @@ export function RoommateProfile() {
     setLoading(true);
     setError("");
     setNotFound(false);
-    api
-      .roommate(roommateId)
-      .then((data) => {
-        if (active) setRoommate(data.roommate);
+    Promise.all([api.roommate(roommateId), api.lifestyle()])
+      .then(([data, own]) => {
+        if (active) {
+          setRoommate(data.roommate);
+          setOwnAnswers(own.answers);
+        }
       })
       .catch((error) => {
         if (!active) return;
@@ -180,8 +289,8 @@ export function RoommateProfile() {
                     </div>
                   </div>
                   <ProfileFact icon="pin" title="Neighborhood">
-                    {roommate.housing?.neighborhood || "Not added"} ·{" "}
-                    {roommate.housing?.city || "Not added"}
+                    {roommate.housing?.neighborhood || "Not provided"} ·{" "}
+                    {roommate.housing?.city || "Not provided"}
                   </ProfileFact>
                   <ProfileFact icon="money" title="Monthly budget">
                     {budgetLabel(roommate)} for their share of rent
@@ -190,7 +299,7 @@ export function RoommateProfile() {
                     {moveInLabel(roommate.housing?.move_in_date)} ·{" "}
                     {roommate.housing?.lease_months
                       ? `${roommate.housing.lease_months}-month lease`
-                      : "Lease length not added"}
+                      : "Not provided"}
                   </ProfileFact>
                 </section>
                 <section className="profile-panel">
@@ -208,11 +317,20 @@ export function RoommateProfile() {
                       { key: "cleanliness", label: "Cleanliness" },
                       { key: "roommate_dynamic", label: "Social style" },
                       { key: "smoking", label: "Smoking" },
-                      { key: "guests", label: "Guests" },
+                      {
+                        key: "daytime_visitors",
+                        label: "Daytime visitors (days/week)",
+                      },
+                      {
+                        key: "overnight_guests",
+                        label: "Overnight guests (nights/week)",
+                      },
                     ].map(({ key, label }) => (
                       <div key={key}>
                         <dt>{label}</dt>
-                        <dd>{lifestyleLabel(key, roommate.lifestyle[key])}</dd>
+                        <dd>
+                          {lifestyleLabel(key, roommate.lifestyle[key], true)}
+                        </dd>
                       </div>
                     ))}
                   </dl>
@@ -241,6 +359,14 @@ export function RoommateProfile() {
                     Their work-from-home schedule hasn’t been added.
                   </ProfileFact>
                 </section>
+                {[true, false].map((hard) => (
+                  <AnswerComparison
+                    key={String(hard)}
+                    ownAnswers={ownAnswers}
+                    roommate={roommate}
+                    hard={hard}
+                  />
+                ))}
                 <p className="profile-demo-note">
                   This is a fictional demo roommate with a placeholder portrait.
                 </p>

@@ -18,7 +18,7 @@ def test_seed_is_repeatable_and_preserves_accounts(app, authenticated_client):
         assert len(db.session.execute(db.select(User)).scalars().all()) == 5
         maya = db.session.execute(db.select(User).filter_by(demo_key="maya")).scalar_one()
         assert maya.bio == "Preserve this edited bio."
-        assert len(maya.lifestyle_preferences) == 7
+        assert len(maya.lifestyle_preferences) == 8
         assert maya.housing_preference.neighborhood == "Williamsburg"
     assert authenticated_client.get("/api/auth/me").json["user"]["email"] == "alex@example.com"
 

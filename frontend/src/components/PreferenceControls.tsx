@@ -113,8 +113,8 @@ export function Scale({
   ends: [string, string];
   value: string;
   onChange: (value: string) => void;
-  required: boolean;
-  onRequirement: (value: boolean) => void;
+  required?: boolean;
+  onRequirement?: (value: boolean) => void;
 }) {
   return (
     <section className="lifestyle-section">
@@ -123,7 +123,13 @@ export function Scale({
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
-        <Requirement label={title} value={required} onChange={onRequirement} />
+        {onRequirement && (
+          <Requirement
+            label={title}
+            value={!!required}
+            onChange={onRequirement}
+          />
+        )}
       </div>
       <div className="scale-ends">
         <span>{ends[0]}</span>

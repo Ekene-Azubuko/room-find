@@ -1,95 +1,112 @@
-import {
-  Choices,
-  Requirement,
-  Scale,
-} from "../../components/PreferenceControls";
+import { Requirement, Scale } from "../../components/PreferenceControls";
 import {
   cleanlinessValues,
-  sleepOptions,
-  dynamicOptions,
-  smokingOptions,
+  initialChoices,
+  questionOptions,
+  questionTitles,
   type Question,
   type UpdateChoice,
   type UpdateRequirement,
 } from "./options";
 
-/** Render shared-home lifestyle choices and importance controls. */
+/** Render independent habits and expectations with importance only on restrictions. */
 export function LifestyleStep({
   choices,
+  expectations,
   requirements,
   updateChoice,
+  updateExpectation,
   updateRequirement,
 }: {
   choices: Record<Question, string>;
+  expectations: Record<Question, string>;
   requirements: Record<Question, boolean>;
   updateChoice: UpdateChoice;
+  updateExpectation: UpdateChoice;
   updateRequirement: UpdateRequirement;
 }) {
   return (
     <div className="surface lifestyle-form">
-      <Scale
-        title="Cleanliness & organization"
-        description="How tidy do you like shared spaces?"
-        ends={["Relaxed", "Very tidy"]}
-        value={String(cleanlinessValues.indexOf(choices.cleanliness) + 1)}
-        onChange={(value) =>
-          updateChoice("cleanliness", cleanlinessValues[Number(value) - 1])
-        }
-        required={requirements.cleanliness}
-        onRequirement={(value) => updateRequirement("cleanliness", value)}
-      />
-      <Scale
-        title="Noise at home"
-        description="What level feels comfortable on weeknights?"
-        ends={["Very quiet", "Lively"]}
-        value={choices.noise}
-        onChange={(value) => updateChoice("noise", value)}
-        required={requirements.noise}
-        onRequirement={(value) => updateRequirement("noise", value)}
-      />
-      <section className="lifestyle-section">
-        <div className="section-title">
-          <div>
-            <h2>Your usual sleep schedule</h2>
-            <p>Choose the option that’s closest most days.</p>
-          </div>
-          <Requirement
-            label="Sleep schedule"
-            value={requirements.sleep_schedule}
-            onChange={(value) => updateRequirement("sleep_schedule", value)}
-          />
-        </div>
-        <Choices
-          name="Sleep schedule"
-          value={choices.sleep_schedule}
-          options={sleepOptions}
-          onChange={(value) => updateChoice("sleep_schedule", value)}
-        />
-      </section>
-      <section className="lifestyle-section inline-section">
-        <div>
-          <h2>Roommate dynamic</h2>
-          <p>How social would you like home to feel?</p>
-        </div>
-        <Choices
-          name="Roommate dynamic"
-          value={choices.roommate_dynamic}
-          options={dynamicOptions}
-          onChange={(value) => updateChoice("roommate_dynamic", value)}
-        />
-      </section>
-      <section className="lifestyle-section inline-section">
-        <div>
-          <h2>Smoking</h2>
-          <p>Inside or around the home.</p>
-        </div>
-        <Choices
-          name="Smoking"
-          value={choices.smoking}
-          options={smokingOptions}
-          onChange={(value) => updateChoice("smoking", value)}
-        />
-      </section>
+      <p>
+        Personal answers describe you. Must-have means a roommate expectation is
+        non-negotiable; Flexible means you would consider someone who does not
+        meet it.
+      </p>
+      {(Object.keys(initialChoices) as Question[]).map((key) => (
+        <section className="lifestyle-section" key={key}>
+          <h2>{questionTitles[key]}</h2>
+          {key === "cleanliness" && (
+            <p>
+              Rate your own habits on the 1–5 scale. Your roommate expectation
+              is a separate answer below.
+            </p>
+          )}
+          {key === "cleanliness" ? (
+            <Scale
+              title="Your cleanliness habits (1–5)"
+              description="How do you usually keep shared spaces?"
+              ends={["Relaxed", "Very tidy"]}
+              value={String(cleanlinessValues.indexOf(choices[key]) + 1)}
+              onChange={(value) =>
+                updateChoice(key, cleanlinessValues[Number(value) - 1])
+              }
+            />
+          ) : (
+            <label>
+              Your answer
+              <select
+                aria-label={questionTitles[key]}
+                value={choices[key]}
+                onChange={(event) => updateChoice(key, event.target.value)}
+              >
+                <option value="">Not provided</option>
+                {questionOptions(key).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            {key === "pets"
+              ? "Are you comfortable living with a roommate who has pets?"
+              : key === "smoking"
+                ? "Are you comfortable living with a roommate who smokes?"
+                : key === "daytime_visitors"
+                  ? "How often are you comfortable with a roommate having daytime visitors?"
+                  : key === "overnight_guests"
+                    ? "How often are you comfortable with a roommate having overnight guests?"
+                    : "Your roommate expectation"}
+            <select
+              aria-label={`${key} roommate expectation`}
+              value={expectations[key]}
+              onChange={(event) => updateExpectation(key, event.target.value)}
+            >
+              <option value="">Not provided</option>
+              {questionOptions(key, true).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {key === "cleanliness" && (
+            <ol>
+              {questionOptions(key).map(([value, label]) => (
+                <li key={value}>{label.replace(/^\d\. /, "")}</li>
+              ))}
+            </ol>
+          )}
+          {expectations[key] && expectations[key] !== "no_preference" && (
+            <Requirement
+              label={`${key} roommate expectation`}
+              value={requirements[key]}
+              onChange={(value) => updateRequirement(key, value)}
+            />
+          )}
+        </section>
+      ))}
     </div>
   );
 }

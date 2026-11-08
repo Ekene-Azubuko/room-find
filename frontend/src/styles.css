@@ -1546,3 +1546,9 @@ select {
     transition: none !important;
   }
 }
+
+.lifestyle-section > label { display: block; margin: 16px 0; }
+.lifestyle-section select { display: block; width: 100%; max-width: 100%; margin-top: 8px; }
+.lifestyle-section li { margin-bottom: 8px; line-height: 1.5; }
+
+.lifestyle-form > p { padding: 24px 27px 0; margin: 0; line-height: 1.6; }

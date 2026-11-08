@@ -141,3 +141,25 @@ def test_failed_write_rolls_back(authenticated_client, monkeypatch):
     assert response.json == {"error": "The database write failed; please retry."}
     assert rollbacks == [True]
     assert authenticated_client.get(PATH).json == {"answers": [original]}
+
+
+@pytest.mark.parametrize("key,own,expectation", [
+    ("pets", "has_pets", "no_pets"),
+    ("smoking", "smoker", "non_smoker"),
+    ("daytime_visitors", "5_7", "1_2"),
+    ("overnight_guests", "1_2", "never"),
+])
+def test_independent_habits_and_limits(authenticated_client, key, own, expectation):
+    """Persist asymmetric answers and require importance to refer to a real limit."""
+    payload = {"own_answer": own, "roommate_answer": expectation, "is_requirement": True}
+    assert authenticated_client.put(PATH + "/" + key, json=payload).status_code == 200
+    saved = authenticated_client.get(PATH).json["answers"][0]
+    assert all(saved[field] == value for field, value in payload.items())
+    for missing in (None, "no_preference"):
+        payload.update(roommate_answer=missing)
+        assert authenticated_client.put(PATH + "/" + key, json=payload).status_code == 400
+        payload.update(own_answer=None, is_requirement=False)
+        assert authenticated_client.put(PATH + "/" + key, json=payload).status_code == 200
+        saved = authenticated_client.get(PATH).json["answers"][0]
+        assert saved["own_answer"] is None and saved["roommate_answer"] == missing
+        payload.update(is_requirement=True)

@@ -66,6 +66,16 @@ const roommates: Roommate[] = [
   },
 ].map((roommate) => ({
   ...roommate,
+  answers: [
+    {
+      question_key: "pets",
+      own_answer: roommate.lifestyle.pets,
+      roommate_answer: [2, 3].includes(roommate.id)
+        ? "no_preference"
+        : "no_pets",
+      is_requirement: false,
+    },
+  ],
   age: 25,
   occupation: "Demo occupation",
   life_stage: "Young professional",
