@@ -74,6 +74,7 @@ class LifestylePreference(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     question_key = db.Column(db.String(50), primary_key=True)
+    legacy_answers = db.Column(db.JSON)
     own_answer = db.Column(db.String(100))
     roommate_answer = db.Column(db.String(100))
     is_requirement = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())

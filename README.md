@@ -305,7 +305,7 @@ All three routes require authentication; PUT also requires `X-CSRF-Token`.
 
 The supplied UI references extend the initial questionnaire with single-choice
 categories that fit the existing one-answer-per-column schema; pet presence deliberately avoids multi-select pet species. Sleep, cleanliness,
-smoking, and pets are required. Guests is retained as an optional API question;
+smoking, and pets are required. Legacy guests is retained as an optional API question;
 noise and roommate dynamic are optional for compatibility with existing accounts. Definitions live in
 `backend/app/preferences/questions.py` and are shared with validation.
 
@@ -313,9 +313,10 @@ noise and roommate dynamic are optional for compatibility with existing accounts
 | --- | --- | --- |
 | sleep_schedule | early, late, flexible | own choices plus no_preference |
 | cleanliness | relaxed, mostly_relaxed, moderately_tidy, tidy, very_tidy | own choices plus no_preference |
-| smoking | non_smoker, smoker, outside_only, any | non_smoker, smoker, outside_only, no_preference |
+| smoking | non_smoker, smoker, outside_only | non_smoker, outside_only, no_preference |
 | guests | rarely, sometimes, often | own choices plus no_preference |
-| pets | has_pets, no_pets, okay_with_pets | own choices plus no_preference |
+| pets | has_pets, no_pets | no_pets, no_preference |
+| daytime_visitors / overnight_guests | never, less_than_weekly, 1_2, 3_4, 5_7 | same choices as acceptable maximums, plus no_preference |
 | noise | 1, 2, 3, 4, 5 | own choices plus no_preference |
 | roommate_dynamic | independent, friendly, close_friends | own choices plus no_preference |
 
@@ -392,12 +393,31 @@ before using this frontend. Existing account/profile data is preserved.
 Neighborhood accepts up to 200 characters; a true neighborhood requirement needs
 a neighborhood. City and neighborhood retain separate flags.
 
-The four-step UI models shared-home preferences: its selected lifestyle value is
-saved as both the own answer and preferred roommate answer, while Must-have
-controls the requirement flag. Smoking “No preference” maps to own `any` and
-roommate `no_preference`. Existing separate own/roommate API choices remain
-supported, but editing a choice through this UI aligns both values. New details
-remain optional at the API level so existing completed profiles stay compatible.
+The four-step UI saves personal habits and roommate expectations independently.
+Pets and smoking are in the Lifestyle step. Importance applies only to a specific
+roommate expectation; unrestricted and unanswered expectations have no importance.
+Cleanliness explicitly describes personal shared-space habits, using the same five
+descriptions in editing, review, and profile details. Guest frequencies use days
+per week for daytime visitors and nights per week for overnight guests.
+
+Migration `d4a12f09b731` adds a nullable `legacy_answers` JSON archive to existing
+lifestyle rows. Run `flask --app app:create_app db upgrade` before starting the new
+version (or the Compose command below). Original affected pet, smoking, and
+cleanliness pairs are retained in that archive. Ambiguous combined personal answers
+become null; unsupported expectations become null or an unambiguous no-preference
+choice. Existing users can browse and edit, but may need to complete missing
+answers before completing onboarding again. Legacy `guests` answers remain stored;
+they are not converted into daytime/overnight frequencies. New guest fields are
+optional for existing accounts. Downgrading restores archived pairs, so export
+new edits before rolling back.
+
+Expanded demo profiles show both people's personal answers and expectations in
+Hard requirements and Shared lifestyle preferences, alongside Worth talking about.
+Missing answers display “Not provided.” There is no directional matching algorithm
+or scoring system; these are saved answers for discussion, not validated matches.
+The pet-friendly discovery filter uses willingness to live with pets, not ownership.
+Seeding continues to preserve existing demo profiles; only newly created demos get
+the new explicit guest answers.
 
 ## Discovery and demo roommates
 

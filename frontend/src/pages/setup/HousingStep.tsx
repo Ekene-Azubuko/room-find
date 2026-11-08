@@ -1,33 +1,18 @@
 import type { Housing } from "../../api/client";
 import { Icon } from "../../components/Icon";
 import {
-  Choices,
   PreferenceRow,
   Requirement,
 } from "../../components/PreferenceControls";
-import {
-  petOptions,
-  type Question,
-  type UpdateHousing,
-  type UpdateChoice,
-  type UpdateRequirement,
-} from "./options";
+import { type UpdateHousing } from "./options";
 
-/** Render housing, move-in, budget, and pet preferences. */
+/** Render housing, move-in, and budget preferences. */
 export function HousingStep({
   housing,
-  choices,
-  requirements,
   updateHousing,
-  updateChoice,
-  updateRequirement,
 }: {
   housing: Housing;
-  choices: Record<Question, string>;
-  requirements: Record<Question, boolean>;
   updateHousing: UpdateHousing;
-  updateChoice: UpdateChoice;
-  updateRequirement: UpdateRequirement;
 }) {
   return (
     <>
@@ -36,8 +21,8 @@ export function HousingStep({
         <div>
           <strong>Must-have vs. Flexible</strong>
           <p>
-            Must-haves filter out incompatible matches. Flexible preferences
-            help us calculate compatibility.
+            Must-have means non-negotiable. Flexible means you would consider
+            alternatives. Compatibility is not calculated in this demo.
           </p>
         </div>
       </aside>
@@ -144,23 +129,6 @@ export function HousingStep({
                 ))}
             </select>
           </div>
-        </PreferenceRow>
-        <PreferenceRow
-          icon="heart"
-          title="Pets in the home"
-          description="Choose what works for you."
-        >
-          <Choices
-            name="Pets in the home"
-            value={choices.pets}
-            options={petOptions}
-            onChange={(value) => updateChoice("pets", value)}
-          />
-          <Requirement
-            label="Pets"
-            value={requirements.pets}
-            onChange={(value) => updateRequirement("pets", value)}
-          />
         </PreferenceRow>
       </div>
     </>

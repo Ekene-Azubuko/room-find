@@ -15,13 +15,8 @@ import {
   steps,
   titles,
   descriptions,
-  cleanlinessValues,
-  cleanlinessLabels,
-  noiseLabels,
-  sleepOptions,
-  petOptions,
-  dynamicOptions,
-  smokingOptions,
+  answerLabel,
+  questionTitles,
   initialHousing,
   initialChoices,
   type Question,
@@ -32,11 +27,6 @@ import { ProfileStep } from "./setup/ProfileStep";
 import { HousingStep } from "./setup/HousingStep";
 import { LifestyleStep } from "./setup/LifestyleStep";
 import { ReviewStep } from "./setup/ReviewStep";
-
-/** Resolve an option's readable label for the review screen. */
-function optionLabel(options: [string, string][], value: string) {
-  return options.find(([key]) => key === value)?.[1] || value;
-}
 
 /** Guide account owners through four persisted profile-setup steps. */
 export function Setup() {
@@ -62,13 +52,16 @@ export function Setup() {
   });
   const [housing, setHousing] = useState<Housing>(initialHousing);
   const [choices, setChoices] = useState(initialChoices);
+  const [expectations, setExpectations] = useState(initialChoices);
   const [requirements, setRequirements] = useState<Record<Question, boolean>>({
     cleanliness: false,
-    noise: true,
+    noise: false,
     sleep_schedule: false,
     pets: false,
     roommate_dynamic: false,
     smoking: false,
+    daytime_visitors: false,
+    overnight_guests: false,
   });
   const [photoUrl, setPhotoUrl] = useState("/images/avatar.jpg");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -94,15 +87,18 @@ export function Setup() {
       if (p.photo_url) setPhotoUrl(p.photo_url);
       if (home.housing) setHousing({ ...initialHousing, ...home.housing });
       const savedChoices = { ...initialChoices };
+      const savedExpectations = { ...initialChoices };
       const savedRequirements = { ...requirements };
       for (const answer of lifestyle.answers) {
-        if (answer.question_key in initialChoices && answer.own_answer) {
+        if (answer.question_key in initialChoices) {
           const key = answer.question_key as Question;
-          savedChoices[key] = answer.own_answer;
+          savedChoices[key] = answer.own_answer || "";
+          savedExpectations[key] = answer.roommate_answer || "";
           savedRequirements[key] = answer.is_requirement;
         }
       }
       setChoices(savedChoices);
+      setExpectations(savedExpectations);
       setRequirements(savedRequirements);
       setLoaded(true);
     } catch (error) {
@@ -149,6 +145,11 @@ export function Setup() {
   function updateChoice(key: Question, value: string) {
     setChoices((previous) => ({ ...previous, [key]: value }));
   }
+  /** Update only the expectation and clear importance when no limit remains. */
+  function updateExpectation(key: Question, value: string) {
+    setExpectations((previous) => ({ ...previous, [key]: value }));
+    if (!value || value === "no_preference") updateRequirement(key, false);
+  }
   /** Update the selected preference's importance. */
   function updateRequirement(key: Question, value: boolean) {
     setRequirements((previous) => ({ ...previous, [key]: value }));
@@ -173,9 +174,12 @@ export function Setup() {
     const value = choices[key];
     return {
       question_key: key,
-      own_answer: value,
-      roommate_answer: value === "any" ? "no_preference" : value,
-      is_requirement: value === "any" ? false : requirements[key],
+      own_answer: value || null,
+      roommate_answer: expectations[key] || null,
+      is_requirement:
+        !!expectations[key] &&
+        expectations[key] !== "no_preference" &&
+        requirements[key],
     };
   }
   /** Save the current step before advancing, retaining the draft after a failed write. */
@@ -217,16 +221,9 @@ export function Setup() {
           move_in_is_requirement: housing.move_in_is_requirement,
           lease_is_requirement: housing.lease_is_requirement,
         });
-        await api.saveAnswer(answer("pets"));
       } else if (step === 3) {
         // Writes are sequential because each CSRF response can update the session cookie.
-        for (const key of [
-          "cleanliness",
-          "noise",
-          "sleep_schedule",
-          "roommate_dynamic",
-          "smoking",
-        ] as Question[])
+        for (const key of Object.keys(initialChoices) as Question[])
           await api.saveAnswer(answer(key));
       } else {
         await api.complete();
@@ -255,7 +252,7 @@ export function Setup() {
   const details: Detail[] = [
     {
       label: "Neighborhood",
-      value: housing.neighborhood || housing.city || "Not set",
+      value: housing.neighborhood || housing.city || "Not provided",
       required: housing.neighborhood_is_requirement,
       step: 2,
     },
@@ -264,54 +261,33 @@ export function Setup() {
       value:
         housing.budget_min && housing.budget_max
           ? `${money.format(Number(housing.budget_min))}–${money.format(Number(housing.budget_max))}`
-          : "Not set",
+          : "Not provided",
       required: housing.budget_is_requirement,
       step: 2,
     },
     {
       label: "Move-in",
-      value: `${housing.move_in_date ? new Date(`${housing.move_in_date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "Not set"} · ${housing.lease_months || "—"} months`,
+      value: `${housing.move_in_date ? new Date(`${housing.move_in_date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "Not provided"} · ${housing.lease_months || "—"} months`,
       required: housing.move_in_is_requirement || housing.lease_is_requirement,
       step: 2,
     },
-    {
-      label: "Pets",
-      value: optionLabel(petOptions, choices.pets),
-      required: requirements.pets,
-      step: 2,
-    },
-    {
-      label: "Cleanliness",
-      value:
-        cleanlinessLabels[cleanlinessValues.indexOf(choices.cleanliness)] ||
-        choices.cleanliness,
-      required: requirements.cleanliness,
-      step: 3,
-    },
-    {
-      label: "Noise at home",
-      value: noiseLabels[Number(choices.noise) - 1],
-      required: requirements.noise,
-      step: 3,
-    },
-    {
-      label: "Sleep schedule",
-      value: optionLabel(sleepOptions, choices.sleep_schedule),
-      required: requirements.sleep_schedule,
-      step: 3,
-    },
-    {
-      label: "Roommate dynamic",
-      value: optionLabel(dynamicOptions, choices.roommate_dynamic),
-      required: requirements.roommate_dynamic,
-      step: 3,
-    },
-    {
-      label: "Smoking",
-      value: optionLabel(smokingOptions, choices.smoking),
-      required: requirements.smoking,
-      step: 3,
-    },
+    ...(Object.keys(initialChoices) as Question[]).flatMap((key) => [
+      {
+        label: `You: ${questionTitles[key]}`,
+        value: answerLabel(key, choices[key]),
+        required: false,
+        step: 3,
+      },
+      {
+        label: `Your expectation: ${key.replaceAll("_", " ")}`,
+        value: answerLabel(key, expectations[key], true),
+        required:
+          requirements[key] &&
+          !!expectations[key] &&
+          expectations[key] !== "no_preference",
+        step: 3,
+      },
+    ]),
   ];
 
   return (
@@ -380,17 +356,12 @@ export function Setup() {
                 />
               )}
               {step === 2 && (
-                <HousingStep
-                  housing={housing}
-                  choices={choices}
-                  requirements={requirements}
-                  updateHousing={updateHousing}
-                  updateChoice={updateChoice}
-                  updateRequirement={updateRequirement}
-                />
+                <HousingStep housing={housing} updateHousing={updateHousing} />
               )}
               {step === 3 && (
                 <LifestyleStep
+                  expectations={expectations}
+                  updateExpectation={updateExpectation}
                   choices={choices}
                   requirements={requirements}
                   updateChoice={updateChoice}

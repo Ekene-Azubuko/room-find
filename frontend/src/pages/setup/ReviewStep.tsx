@@ -27,12 +27,14 @@ export function ReviewStep({
             <div className="review-title">
               <div>
                 <span className="review-badge">
-                  {required ? "HARD REQUIREMENTS" : "FLEXIBLE PREFERENCES"}
+                  {required
+                    ? "HARD REQUIREMENTS"
+                    : "ANSWERS & FLEXIBLE PREFERENCES"}
                 </span>
                 <h2>
                   {required
                     ? "Your non-negotiables"
-                    : "Helps calculate compatibility"}
+                    : "Your habits and preferences"}
                 </h2>
               </div>
               <span>
